@@ -1,7 +1,8 @@
 (function(){
-    // Pequena API para encapsular operações sobre app.data
-    // Não substitui a orquestração central; fornece pontos de entrada para futuras extrações.
+    // Pequena API para encapsular operações sobre app.data e outros datasets (receita/despesa/keyRatios)
+    // Objetivo: fornecer pontos de acesso padronizados sem alterar comportamento atual.
     const DataAPI = {
+        // --- Generic data (app.data) ---
         getData(app) {
             return (app && app.data) ? app.data : [];
         },
@@ -18,23 +19,17 @@
         },
 
         importData(app, rows, { merge = false, persist = true, render = true } = {}) {
-            // rows: array de objetos já normalizados (espera formato compatível com app.data)
             if (!app) return;
             if (!Array.isArray(rows)) return;
             if (!Array.isArray(app.data) || !merge) {
                 app.data = rows.slice();
             } else {
-                // merge simples: concatena e evita duplicados por id quando presente
                 const existingById = new Map();
                 app.data.forEach(d => { if (d && d.id !== undefined) existingById.set(String(d.id), d); });
                 rows.forEach(r => {
-                    if (r && r.id !== undefined) {
-                        existingById.set(String(r.id), r);
-                    } else {
-                        app.data.push(r);
-                    }
+                    if (r && r.id !== undefined) existingById.set(String(r.id), r);
+                    else app.data.push(r);
                 });
-                // se existirem ids, reconstruir array a partir do mapa
                 if (existingById.size) app.data = Array.from(existingById.values());
             }
 
@@ -43,6 +38,147 @@
             }
             if (render && typeof app.renderData === 'function') {
                 try { app.renderData(); } catch(e) { console.warn('DataAPI.renderData failed', e); }
+            }
+        },
+
+        // --- Receita helpers ---
+        getReceita(app) {
+            return (app && Array.isArray(app.receita)) ? app.receita : [];
+        },
+
+        setReceita(app, list, { persist = true, render = true } = {}) {
+            if (!app) return;
+            app.receita = Array.isArray(list) ? list : [];
+            if (persist && typeof app.saveToStorage === 'function') {
+                try { app.saveToStorage(); } catch(e) { console.warn('DataAPI.setReceita: saveToStorage failed', e); }
+            }
+            const fn = (typeof app.renderReceita === 'function') ? app.renderReceita : (typeof app.renderData === 'function' ? app.renderData : null);
+            if (render && fn) { try { fn(); } catch(e){ console.warn('DataAPI.setReceita: render failed', e); } }
+        },
+
+        importReceita(app, rows, { merge = false, persist = true, render = true } = {}) {
+            if (!app || !Array.isArray(rows)) return;
+            const header = (rows[0] || []).map(h => String(h || '').trim());
+            const list = [];
+            for (let i = 1; i < rows.length; i++) {
+                const row = rows[i]; if (!row) continue;
+                const obj = {}; let any = false;
+                for (let j = 0; j < header.length; j++) {
+                    const key = header[j] || `col${j}`;
+                    const val = row[j];
+                    obj[key] = (val === undefined || val === null) ? '' : String(val).trim();
+                    if (obj[key] !== '') any = true;
+                }
+                if (!any) continue;
+                obj.id = Date.now() + Math.random();
+                list.push(obj);
+            }
+            if (merge && Array.isArray(app.receita)) app.receita = app.receita.concat(list);
+            else app.receita = list;
+            if (persist && typeof app.saveToStorage === 'function') { try { app.saveToStorage(); } catch(e){ console.warn('DataAPI.importReceita: saveToStorage failed', e); } }
+            const fn = (typeof app.renderReceita === 'function') ? app.renderReceita : (typeof app.renderData === 'function' ? app.renderData : null);
+            if (render && fn) { try { fn(); } catch(e){ console.warn('DataAPI.importReceita: render failed', e); } }
+        },
+
+        // --- Despesa helpers ---
+        getDespesa(app) {
+            return (app && Array.isArray(app.despesa)) ? app.despesa : [];
+        },
+
+        setDespesa(app, list, { persist = true, render = true } = {}) {
+            if (!app) return;
+            app.despesa = Array.isArray(list) ? list : [];
+            if (persist && typeof app.saveToStorage === 'function') {
+                try { app.saveToStorage(); } catch(e) { console.warn('DataAPI.setDespesa: saveToStorage failed', e); }
+            }
+            const fn = (typeof app.renderDespesa === 'function') ? app.renderDespesa : (typeof app.renderData === 'function' ? app.renderData : null);
+            if (render && fn) { try { fn(); } catch(e){ console.warn('DataAPI.setDespesa: render failed', e); } }
+        },
+
+        importDespesa(app, rows, { merge = false, persist = true, render = true } = {}) {
+            if (!app || !Array.isArray(rows)) return;
+            const header = (rows[0] || []).map(h => String(h || '').trim());
+            const list = [];
+            for (let i = 1; i < rows.length; i++) {
+                const row = rows[i]; if (!row) continue;
+                const obj = {}; let any = false;
+                for (let j = 0; j < header.length; j++) {
+                    const key = header[j] || `col${j}`;
+                    const val = row[j];
+                    obj[key] = (val === undefined || val === null) ? '' : String(val).trim();
+                    if (obj[key] !== '') any = true;
+                }
+                if (!any) continue;
+                obj.id = Date.now() + Math.random();
+                list.push(obj);
+            }
+            if (merge && Array.isArray(app.despesa)) app.despesa = app.despesa.concat(list);
+            else app.despesa = list;
+            if (persist && typeof app.saveToStorage === 'function') { try { app.saveToStorage(); } catch(e){ console.warn('DataAPI.importDespesa: saveToStorage failed', e); } }
+            const fn = (typeof app.renderDespesa === 'function') ? app.renderDespesa : (typeof app.renderData === 'function' ? app.renderData : null);
+            if (render && fn) { try { fn(); } catch(e){ console.warn('DataAPI.importDespesa: render failed', e); } }
+        },
+
+        // --- Key Ratios helpers ---
+        getKeyRatios(app) {
+            return (app && Array.isArray(app.keyRatios)) ? app.keyRatios : [];
+        },
+
+        setKeyRatios(app, list, { persist = true, render = true } = {}) {
+            if (!app) return;
+            app.keyRatios = Array.isArray(list) ? list : [];
+            if (persist && typeof app.saveToStorage === 'function') {
+                try { app.saveToStorage(); } catch(e) { console.warn('DataAPI.setKeyRatios: saveToStorage failed', e); }
+            }
+            const fn = (typeof app.renderKeyRatios === 'function') ? app.renderKeyRatios : (typeof app.renderData === 'function' ? app.renderData : null);
+            if (render && fn) { try { fn(); } catch(e){ console.warn('DataAPI.setKeyRatios: render failed', e); } }
+        },
+
+        importKeyRatios(app, rows, { merge = false, persist = true, render = true } = {}) {
+            if (!app || !Array.isArray(rows)) return;
+            const header = (rows[0] || []).map(h => String(h || '').trim());
+            const list = [];
+            for (let i = 1; i < rows.length; i++) {
+                const row = rows[i]; if (!row) continue;
+                const obj = {}; let any = false;
+                for (let j = 0; j < header.length; j++) {
+                    const key = header[j] || `col${j}`;
+                    const val = row[j];
+                    obj[key] = (val === undefined || val === null) ? '' : String(val).trim();
+                    if (obj[key] !== '') any = true;
+                }
+                if (!any) continue;
+                obj.id = Date.now() + Math.random();
+                list.push(obj);
+            }
+            if (merge && Array.isArray(app.keyRatios)) app.keyRatios = app.keyRatios.concat(list);
+            else app.keyRatios = list;
+            if (persist && typeof app.saveToStorage === 'function') { try { app.saveToStorage(); } catch(e){ console.warn('DataAPI.importKeyRatios: saveToStorage failed', e); } }
+            const fn = (typeof app.renderKeyRatios === 'function') ? app.renderKeyRatios : (typeof app.renderData === 'function' ? app.renderData : null);
+            if (render && fn) { try { fn(); } catch(e){ console.warn('DataAPI.importKeyRatios: render failed', e); } }
+        }
+
+        // --- Plano de Contas helper ---
+        setPlanoContas(app, list, { persist = true, render = true } = {}) {
+            if (!app) return;
+            app.planoContas = Array.isArray(list) ? list : [];
+            if (persist && typeof app.saveToStorage === 'function') {
+                try { app.saveToStorage(); } catch(e) { console.warn('DataAPI.setPlanoContas: saveToStorage failed', e); }
+            }
+            if (render && typeof app.renderPlanoContas === 'function') {
+                try { app.renderPlanoContas(); } catch(e) { console.warn('DataAPI.setPlanoContas: render failed', e); }
+            }
+        },
+
+        // --- Balance data helper ---
+        setBalanceData(app, list, { persist = true, render = true } = {}) {
+            if (!app) return;
+            app.balanceData = Array.isArray(list) ? list : [];
+            if (persist && typeof app.saveToStorage === 'function') {
+                try { app.saveToStorage(); } catch(e) { console.warn('DataAPI.setBalanceData: saveToStorage failed', e); }
+            }
+            if (render && typeof app.renderBalanceData === 'function') {
+                try { app.renderBalanceData(); } catch(e) { console.warn('DataAPI.setBalanceData: render failed', e); }
             }
         }
     };
