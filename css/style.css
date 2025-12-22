@@ -1,0 +1,190 @@
+/* Estilos personalizados para barra de rolagem e transições */
+.fade-in { animation: fadeIn 0.3s ease-in-out; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+.tab-active {
+    border-bottom: 2px solid #2563eb;
+    color: #2563eb;
+    font-weight: 600;
+}
+.tab-inactive {
+    color: #6b7280;
+    border-bottom: 2px solid transparent;
+}
+.tab-inactive:hover {
+    color: #374151;
+    border-bottom: 2px solid #d1d5db;
+}
+/* Estilo para tabela DRE compacta */
+.dre-row td { padding-top: 0.25rem; padding-bottom: 0.25rem; border-bottom: 1px solid #f3f4f6; }
+.dre-group-title { background-color: #e5e7eb; font-weight: 600; font-size: 0.75rem; color: #374151; }
+.dre-total { font-weight: bold; background-color: #dbeafe; border-top: 2px solid #93c5fd; }
+/* ATUALIZADO: Fundo verde claro para Total de Custos */
+.dre-subtotal { 
+    font-weight: 800 !important; 
+    background-color: #dcfce7 !important; /* Light green (Tailwind green-100) */
+    color: #1f2937 !important; /* Dark text */
+    border-top: 1px solid #6ee7b7 !important; /* Medium green border */ 
+    border-bottom: 1px solid #6ee7b7 !important;
+    font-size: 1rem !important;
+    padding-top: 0.35rem !important;
+    padding-bottom: 0.35rem !important;
+}
+
+/* Estilo unificado para subtotais importantes (Receita Líq, Margem Contrib., EBITDA, Resultado Op. Líq) em azul claro */
+.dre-subtotal-final {
+    font-weight: 900 !important; /* Extra extra bold for final key lines */
+    background-color: #dbeafe !important; /* Light blue (tailwind blue-200) */
+    color: #0f172a !important; /* Darker blue/near-black text for emphasis */
+    border-top: 2px solid #60a5fa !important; /* Medium blue top border */
+    border-bottom: 2px solid #60a5fa !important;
+    font-size: 1.1rem !important; 
+    padding-top: 0.35rem !important;
+    padding-bottom: 0.35rem !important;
+}
+
+/* Estilo para subtotais de Grupos (Deduções, Custos, Despesas) em LARANJA CLARO */
+.dre-subtotal-group-orange {
+    font-weight: 700 !important; 
+    background-color: #fef3c7 !important; /* Tailwind yellow-100 (Light Orange/Yellow) */
+    color: #92400e !important; /* Dark Orange/Brown text */
+    border-top: 1px solid #fcd34d !important; 
+    border-bottom: 1px solid #fcd34d !important;
+}
+
+/* Estilo para Totais de Grupo em LARANJA CLARO com TEXTO ESCURO (Quase Preto) */
+.dre-subtotal-group-black-text {
+    font-weight: 700 !important; 
+    background-color: #fef3c7 !important; /* Light Orange/Yellow */
+    color: #1f2937 !important; /* Dark Gray/Black text */
+    border-top: 1px solid #fcd34d !important; 
+    border-bottom: 1px solid #fcd34d !important;
+}
+
+/* Estilo para Títulos de Grupo (ADM) em LARANJA CLARO */
+.dre-group-title-orange {
+    background-color: #fef3c7 !important; 
+    font-weight: 600 !important;
+    font-size: 0.75rem !important; 
+    color: #1f2937 !important; /* Dark Gray/Black text */
+}
+
+
+.dre-detail { color: #4b5563; font-size: 0.625rem; } /* Fonte reduzida para 10px */
+.dre-detail:hover { background-color: #f9fafb; }
+.dre-perc-row td { font-size: 0.6rem; font-style: italic; color: #6b7280; background-color: #fafafa; border-bottom: 1px solid #e5e7eb; } /* Fonte reduzida para ~9.6px */
+
+/* Compactar inputs de filtro */
+.filter-select {
+    padding: 4px 8px;
+    font-size: 0.75rem;
+    border-radius: 4px;
+    border: 1px solid #d1d5db;
+    width: 100%;
+    max-width: 140px;
+}
+/* Estilos específicos DRE Acumulado */
+.header-section { border-bottom: 2px solid #9ca3af; text-align: center; font-weight: bold; font-size: 0.75rem; }
+.var-col { font-size: 0.7rem; border-left: 1px dashed #e5e7eb; }
+.section-border-right { border-right: 2px solid #e5e7eb; }
+.section-border-left { border-left: 2px solid #e5e7eb; }
+
+/* Modo Tela Cheia */
+body.fullscreen-mode {
+    overflow: hidden; /* Remove rolagem da página, vamos rolar apenas a tabela */
+}
+
+body.fullscreen-mode #main-container {
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    height: 100vh !important; /* Força altura total */
+}
+
+body.fullscreen-mode .fade-in {
+    height: 100%; /* Ocupa toda altura do main */
+}
+
+body.fullscreen-mode .fade-in > .bg-white {
+    height: 100% !important;
+    min-height: 0 !important; /* Remove min-height anterior */
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    padding-bottom: 0 !important; /* Remove padding inferior se houver */
+}
+
+/* Faz a área da tabela expandir e ter rolagem própria */
+body.fullscreen-mode .bg-white > .overflow-x-auto {
+    flex: 1;
+    overflow-y: auto; /* Habilita rolagem vertical na tabela */
+    height: 100%;
+    max-height: none !important; /* Remove limite de altura do Tailwind */
+}
+
+/* Ajuste: descrição menor + números maiores para linhas de subtotal */
+.dre-subtotal-final td:nth-child(1),
+.dre-subtotal-final td:nth-child(2),
+.dre-subtotal td:nth-child(1),
+.dre-subtotal td:nth-child(2) {
+    font-size: 0.78rem !important; /* descrição menor */
+    color: #374151 !important;
+    font-weight: 600 !important;
+}
+.dre-subtotal-final td:nth-child(n+3),
+.dre-subtotal td:nth-child(n+3) {
+    font-size: 0.78rem !important; /* igual ao das descrições */
+    font-weight: 600 !important; /* mesmo peso das descrições */
+    color: #0f172a !important;
+    padding-left: 0.5rem !important;
+    padding-right: 0.5rem !important;
+}
+
+/* Classe específica: borda completa até o final da linha e mantém números com mesma fonte */
+.dre-subtotal-eqnums td {
+    border-bottom: 2px solid #93c5fd !important; /* linha azul clara (tailwind blue-300) */
+    border-top: 2px solid #bfdbfe !important; /* linha azul muito clara no topo */
+    background-clip: padding-box !important;
+}
+.dre-subtotal-eqnums td:nth-child(1),
+.dre-subtotal-eqnums td:nth-child(2) {
+    font-size: 0.78rem !important;
+    font-weight: 600 !important;
+}
+.dre-subtotal-eqnums td:nth-child(n+3) {
+    font-size: 0.78rem !important;
+    font-weight: 600 !important;
+}
+
+/* Linha cinza completa para subtotais de grupos (descrições) */
+.dre-row-gray td {
+    background-color: #f3f4f6 !important; /* gray-100 */
+    color: #4b5563 !important; /* mesma cor das descrições */
+}
+.dre-row-gray td:nth-child(1),
+.dre-row-gray td:nth-child(2) {
+    font-size: 0.78rem !important;
+    font-weight: 600 !important;
+}
+.dre-row-gray td:nth-child(n+3) {
+    font-size: 0.78rem !important;
+    font-weight: 600 !important;
+}
+
+/* Destaque para linhas de percentuais: aumentar um pouco a fonte */
+.dre-perc-highlight td:nth-child(1),
+.dre-perc-highlight td:nth-child(2) {
+    font-size: 0.86rem !important; /* slightly reduced */
+    font-weight: 700 !important;
+}
+.dre-perc-highlight td:nth-child(n+3) {
+    font-size: 0.88rem !important; /* slightly reduced */
+    font-weight: 700 !important;
+}
+/* Garantir que a coluna mês atual (act_mo) esteja em negrito nas linhas de percentuais */
+.dre-perc-highlight td:nth-child(3) {
+    font-weight: 700 !important;
+}

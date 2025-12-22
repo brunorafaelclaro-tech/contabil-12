@@ -1,0 +1,187 @@
+Conta OCRA;Description;Value
+Conta OCRA;Income;
+3010;Consultant fees external;122.054.273,03 
+3556;Consultant fees within own Business Area;0,00 
+3557;Consultant fees to other Business Area;0,00 
+3015;Write- up/down of fees;0,00 
+3095;Provision not invoiced WIP;0,00 
+3019;Fee other dep. within same comp.;0,00 
+3018;Costs other dep. within same comp.;0,00 
+3030;Subcontractor fees;0,00 
+;Total fees;0,00 
+3413;Computers within projects;0,00 
+3040;Travel expenses, outlay;0,00 
+3050;Recharged expenses;0,00 
+3110;Training;0,00 
+3521;Sales of computers;0,00 
+3910;Rents;0,00 
+3510;Machinery fees;0,00 
+32101;Licences;0,00 
+3960;Exchange profit from business;0,00 
+3973;Capital gains on fixed assets;0,00 
+3900;Other income;0,00 
+;TOTAL INCOME;122.054.273,03 
+;Production costs;
+7210;Salary consultants;-76.498.267,65 
+7200;Social Security;0,00 
+7500;Statutory and Social Security contributions;-12.801.145,88 
+74001;Other personnel costs, consultants;0,00 
+4619;Subcontractors from group comp.;0,00 
+4110;Subcontractors;0,00 
+4200;Machinery costs;0,00 
+4040;Licence costs;-2.840.793,38 
+4211;Costs for computers in projects ;0,00 
+4550;Outlay/expenses projects;0,00 
+4670;Material cost to customers;0,00 
+4630;Computer software;0,00 
+4223;Operating costs test;0,00 
+4185;Education/training costs;0,00 
+6624;Microsoft Licence;0,00 
+4022;Cost of computers for sale;0,00 
+4730;Other production costs;-2.807.997,34 
+7860;Depreciation intangible assets;-158.476,89 
+7850;Depreciation tangible assets;-767.332,52 
+;Total production costs;-95.874.013,66 
+;GROSS PROFIT;26.180.259,37 
+7110;Salary administration;-3.880.858,25 
+7002;Salary salesmen;0,00 
+7003;Salary leaders;0,00 
+7004;Social Security;-690.210,34 
+7400;Other personnel costs;0,00 
+5010;Office rental costs;-564.792,18 
+6110;Office expenses;-1.154.857,19 
+6300;Insurance and other riskrelated costs   ;-59.190,54 
+6500;Consultants and external services  ;-605.913,30 
+6200;Communication;-304.474,40 
+7615;Vehicle costs;-802.838,95 
+5900;Sales and marketing costs;-60.134,48 
+6354;Provision doubtful debts;0,00 
+6352;Reserve high risk debts;0,00 
+7960;Exchange loss from business;0,00 
+6990;Other costs;-1.565.147,40 
+6998;Reversal One-off costs;0,00 
+6999;One-off costs;0,00 
+7973;Capital losses on fixed assets;0,00 
+7840;Depreciation intangible assets;0,00 
+7830;Depreciation tangible assets;0,00 
+;Total administration costs;-9.688.417,04 
+;PROFIT BEFORE SaS;0,00 
+6430;Management fee Semcon AB;-2.476.945,66 
+7981;Shared Service fee;0,00 
+6435;Management fee Reduciton;0,00 
+6436;Internal Business Area OH;-1.080.973,74 
+6437;Internal Region OH;11,36 
+7994;Other management fees;0,00 
+;Total SaS;-3.557.908,05 
+7199;Manager bonus;-229.166,67 
+;EBIT;12.704.767,62 
+8010;Dividend from group companies;0,00 
+8022;Result from sale of group companies;0,00 
+8300;Interest income;433.484,44 
+8360;Interest income, group companies;0,00 
+8331;Exchange profit from financing;37.262,32 
+8390;Other financial income;0,00 
+;Total financial income;470.746,76 
+8072;Write-down of assets in group companies;0,00 
+8400;Interest expenses;-703.937,69 
+8412;Interest expenses pension obligations;0,00 
+8460;Interest expenses, group companies;0,00 
+8436;Exchange loss from financing;-13.903,22 
+8490;Other financial expenses;0,00 
+;Total financial expenses;-717.840,91 
+;Finance net;-247.094,15 
+;PROFIT AFTER FINANCIAL ITEMS;12.457.673,47 
+8893;Contribution from/to group companies;0,00 
+8820;Centrally approved items Semcon Operative fee;2.476.945,66 
+8821;Centrally approved items Internal Business fee;1.080.973,74 
+8828;Centrally approved items Legal Service fee;0,00 
+8829;Centrally approved items Other;0,00 
+8890;Other appropriations;0,00 
+;Total appropriations;3.557.919,41 
+;PROFIT BEFORE TAXES;0,00 
+8910;Current tax;-6.890.678,23 
+8935;WHT (Whithold tax);0,00 
+8940;Deferred tax;481.255,78 
+8980;Other tax;0,00 
+;Total tax;-6.409.422,45 
+;Net profit or loss for the year;9.606.170,43 
+;;
+ASSETS;;
+;Fixed assets;3.717.055,94 
+;Intangible assets;0,00 
+1070;Goodwill;0,00 
+1040;Other intangible assets;215.797,16 
+;Total intangible assets;215.797,16 
+;;0,00 
+;Tangible assets;0,00 
+1110;Buildings and land;0,00 
+1230;Plant and machinery;1.024.388,43 
+1210;Equipment;0,00 
+1220;Computers;2.476.870,35 
+;Total tangible assets;3.501.258,78 
+;;0,00 
+;Financial assets;0,00 
+1312;Shares in group companies;0,00 
+1315;Shares in associated companies;0,00 
+1370;Deferred tax assets;0,00 
+1360;Long-term receivables group companies;0,00 
+1388;Other financial assets;0,00 
+;Total financial assets;0,00 
+;Total fixed assets;0,00 
+;Current assets;0,00 
+1510;Accounts receivable, external;13.320.263,26 
+1560;Accounts receivable, group companies;0,00 
+1565;Accounts receivable, Ratos group companies;144.018,00 
+1400;Inventories;0,00 
+1470;Work in progress;19.064.606,98 
+1640;Current tax receivable;795.304,52 
+1600;Other current receivables, employees;3.876.162,23 
+1689;Other current receivables, external;435.827,01 
+1660;Other current receivables, group companies;0,00 
+1790;Prepaid expenses and accrued income;1.562.765,84 
+;Total current assets excl. cash;39.198.947,84 
+1960;Cash pool receivables, group companies;0,00 
+1800;Short-term financial investments;0,00 
+1930;Cash and bank;19.705.436,43 
+;Total cash and bank equivalent;19.705.436,43 
+;Total current assets;58.904.384,27 
+;TOTAL ASSETS;62.621.440,21 
+;;0,00 
+SHAREHOLDERS' EQUITY AND LIABILITIES;;0,00 
+;Shareholders' equity  ;0,00 
+;Restricted equity;0,00 
+2081;Share capital;6.944.043,00 
+2086;Restricted reserves;0,00 
+;Non-restricted equity;0,00 
+2090;Profit brought forward   ;18.551.926,96 
+2099;Net profit or loss for the year;0,00 
+;;0,00 
+2200;Minority interest;0,00 
+;Total shareholders' equity;25.495.969,96 
+2190;Untaxed reserves;0,00 
+;Long-term liabilities;0,00 
+2520;Deferred tax liabilities;4.606.786,62 
+2270;Pension obligations;0,00 
+2280;Other long-term provisions;0,00 
+2352;Other long-term interest-bearing liabilities;0,00 
+2390;Other long-term non interest-bearing liabilities;0,00 
+2360;Other long-term liabilities, group companies;0,00 
+;Total long-term liabilities;4.606.786,62 
+;Current liabilities;0,00 
+2843;Cash pool liabilities, group companies;0,00 
+2842;Overdraft facilities, external;0,00 
+2841;Other current interest-bearing liabilities ;0,00 
+2440;Accounts payable, external;1.647.250,48 
+2460;Accounts payable, group companies;0,00 
+2510;Current tax liabilities;3.176.104,91 
+2420;Advance payments from customers;0,00 
+2700;Other current liabilities, employees;4.132.126,59 
+2890;Other current liabilities, external;0,00 
+2840;Loans;505.481,07 
+2860;Other current liabilities, group companies;1.775.826,93 
+2290;Other current provisions;0,00 
+2902;Accrued expenses, employees & subcontractors;11.357.133,93 
+2990;Accrued expenses and prepaid income;318.589,29 
+;Total current liabilities;22.912.513,20 
+;TOTAL SHAREHOLDERS' EQUITY AND LIABILITIES;53.015.269,78 
+;;

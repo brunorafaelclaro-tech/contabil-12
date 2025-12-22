@@ -1,0 +1,1381 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Consolidação Financeira</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="bg-gray-50 text-gray-800 font-sans min-h-screen">
+    <script>
+        // Stub robusto para evitar ReferenceError em handlers inline caso o script principal falhe ao carregar.
+        // Mantemos uma fila de chamadas que serão processadas quando o script principal definir `window.app`.
+        (function(){
+            window.app = window.app || {};
+            window.app._queuedCalls = window.app._queuedCalls || [];
+
+            const createProxy = (name) => {
+                if (!window.app[name]) {
+                    window.app[name] = function(){
+                        const args = Array.prototype.slice.call(arguments);
+                        window.app._queuedCalls.push({fn: name, args});
+                    };
+                }
+            };
+
+            // Funções usadas inline no HTML — proxys para enfileirar chamadas até o script real estar pronto
+            ['switchTab','exportCurrentData','backupData','restoreData'].forEach(createProxy);
+
+            // Quando o script principal definir `window.app = app`, ele deve processar a fila:
+            // Exemplo no final de `script.js`: window.app = app; // e então processar _queuedCalls.
+        })();
+    </script>
+
+    <nav id="main-navbar" class="bg-white shadow-md">
+        <div class="w-full px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <i class="fa-solid fa-file-invoice-dollar text-blue-600 text-2xl mr-3"></i>
+                    <span class="font-bold text-lg text-gray-800 mr-8">Sistema Contábil Local</span>
+                    <div class="h-16 items-center flex space-x-4" aria-label="Tabs">
+                        <!-- Dropdown Importar Dados -->
+                        <div class="relative group">
+                            <button class="tab-inactive py-2 px-2 inline-flex items-center gap-1 text-xs font-semibold whitespace-nowrap hover:text-blue-600">
+                                <i class="fa-solid fa-file-import text-gray-600"></i> Importar Dados <i class="fa-solid fa-chevron-down text-[10px] ml-1"></i>
+                            </button>
+                            <div class="absolute hidden group-hover:block bg-white shadow-lg rounded-md border border-gray-200 z-50 min-w-[200px] top-full left-0">
+                                <button onclick="app.switchTab('import-receita')" id="tab-import-receita" class="block w-full text-left px-4 py-2 text-xs hover:bg-gray-100 text-gray-700">
+                                    <i class="fa-solid fa-arrow-trend-up text-green-600 w-5"></i> Importar Receita
+                                </button>
+                                <button onclick="app.switchTab('import-despesa')" id="tab-import-despesa" class="block w-full text-left px-4 py-2 text-xs hover:bg-gray-100 text-gray-700">
+                                    <i class="fa-solid fa-arrow-trend-down text-red-600 w-5"></i> Importar Despesa
+                                </button>
+                                <button onclick="app.switchTab('import-budget')" id="tab-import-budget" class="block w-full text-left px-4 py-2 text-xs hover:bg-gray-100 text-gray-700">
+                                    <i class="fa-solid fa-bullseye text-indigo-600 w-5"></i> Importar Budget
+                                </button>
+                                <button onclick="app.switchTab('import-key-ratios')" id="tab-import-key-ratios" class="block w-full text-left px-4 py-2 text-xs hover:bg-gray-100 text-gray-700">
+                                    <i class="fa-solid fa-gauge-high text-blue-600 w-5"></i> Importar Key Ratios
+                                </button>
+                                <button onclick="app.switchTab('import-key-ratios-budget')" id="tab-import-key-ratios-budget" class="block w-full text-left px-4 py-2 text-xs hover:bg-gray-100 text-gray-700">
+                                    <i class="fa-solid fa-chart-simple text-indigo-600 w-5"></i> Importar Key Ratios Budget
+                                </button>
+                                <button onclick="app.switchTab('import-plano-contas')" id="tab-import-plano-contas" class="block w-full text-left px-4 py-2 text-xs hover:bg-gray-100 text-gray-700">
+                                    <i class="fa-solid fa-book text-yellow-600 w-5"></i> Importar Plano de Contas
+                                </button>
+                                <button onclick="app.switchTab('import-balance')" id="tab-import-balance" class="block w-full text-left px-4 py-2 text-xs hover:bg-gray-100 text-gray-700">
+                                    <i class="fa-solid fa-scale-balanced text-teal-600 w-5"></i> Importar Balanço e Pos EBIT
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Dropdown DREs -->
+                        <div class="relative group">
+                            <button class="tab-inactive py-2 px-2 inline-flex items-center gap-1 text-xs font-semibold whitespace-nowrap hover:text-blue-600">
+                                <i class="fa-solid fa-chart-pie text-gray-600"></i> Relatórios DRE <i class="fa-solid fa-chevron-down text-[10px] ml-1"></i>
+                            </button>
+                            <div class="absolute hidden group-hover:block bg-white shadow-lg rounded-md border border-gray-200 z-50 min-w-[200px] top-full left-0">
+                                <button onclick="app.switchTab('dre')" id="tab-dre" class="block w-full text-left px-4 py-2 text-xs hover:bg-gray-100 text-gray-700">
+                                    <i class="fa-solid fa-chart-bar w-5"></i> DRE Mensal
+                                </button>
+                                <!-- DRE Mensal Budget removido; use DRE Mensal Budget-2 -->
+                                <button onclick="app.switchTab('dre-acumulado')" id="tab-dre-acumulado" class="block w-full text-left px-4 py-2 text-xs hover:bg-gray-100 text-gray-700">
+                                    <i class="fa-solid fa-chart-line text-teal-600 w-5"></i> DRE Acumulado
+                                </button>
+                                <button onclick="app.switchTab('dre-budget-2')" id="tab-dre-budget-2" class="block w-full text-left px-4 py-2 text-xs hover:bg-gray-100 text-gray-700">
+                                    <i class="fa-solid fa-chart-bar w-5"></i> DRE Mensal Budget-2
+                                </button>
+                                <button onclick="app.switchTab('dre-departamento')" id="tab-dre-departamento" class="block w-full text-left px-4 py-2 text-xs hover:bg-gray-100 text-gray-700">
+                                    <i class="fa-solid fa-building text-blue-700 w-5"></i> DRE Departamento
+                                </button>
+                                <button onclick="app.switchTab('dre-suecia')" id="tab-dre-suecia" class="block w-full text-left px-4 py-2 text-xs hover:bg-gray-100 text-gray-700">
+                                    <i class="fa-solid fa-globe text-yellow-600 w-5"></i> DRE Suécia
+                                </button>
+                            </div>
+                        </div>
+
+                        <button onclick="app.switchTab('mgmt-fee')" id="tab-mgmt-fee" class="tab-inactive py-2 px-2 inline-flex items-center gap-1 text-xs font-semibold whitespace-nowrap hover:text-blue-600">
+                            <i class="fa-solid fa-money-bill-transfer text-purple-600"></i> Mgmt Fee
+                        </button>
+
+                        <button onclick="app.switchTab('data')" id="tab-data" class="tab-inactive py-2 px-2 inline-flex items-center gap-1 text-xs font-semibold whitespace-nowrap hover:text-blue-600">
+                            <i class="fa-solid fa-table"></i> Dados
+                        </button>
+
+                        <button onclick="app.switchTab('margin-analysis')" id="tab-margin-analysis" class="tab-inactive py-2 px-2 inline-flex items-center gap-1 text-xs font-semibold whitespace-nowrap hover:text-blue-600">
+                            <i class="fa-solid fa-percent text-orange-600"></i> Margem
+                        </button>
+
+                        <button onclick="app.switchTab('export-ocra')" id="tab-export-ocra" class="tab-inactive py-2 px-2 inline-flex items-center gap-1 text-xs font-semibold whitespace-nowrap hover:text-blue-600">
+                            <i class="fa-solid fa-file-export text-indigo-600"></i> OCRA
+                        </button>
+
+                        <button onclick="app.switchTab('locks')" id="tab-locks" class="tab-inactive py-2 px-2 inline-flex items-center gap-1 text-xs font-semibold whitespace-nowrap hover:text-blue-600">
+                            <i class="fa-solid fa-lock"></i> Config
+                        </button>
+                        <button onclick="app.switchTab('centros-custo')" id="tab-centros-custo" class="tab-inactive py-2 px-2 inline-flex items-center gap-1 text-xs font-semibold whitespace-nowrap hover:text-blue-600">
+                            <i class="fa-solid fa-layer-group text-teal-600"></i> Centro de custos
+                        </button>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <button onclick="app.exportCurrentData()" class="text-sm text-gray-500 hover:text-blue-600" title="Exportar Dados Atual"><i class="fa-solid fa-file-excel"></i> Exportar</button>
+                    <button onclick="app.backupData()" class="text-sm text-gray-500 hover:text-blue-600" title="Baixar Backup JSON"><i class="fa-solid fa-download"></i> Backup</button>
+                    <button onclick="document.getElementById('fileBackup').click()" class="text-sm text-gray-500 hover:text-green-600" title="Restaurar Backup"><i class="fa-solid fa-upload"></i> Restaurar</button>
+                    <input type="file" id="fileBackup" class="hidden" accept=".json" onchange="app.restoreData(this)">
+                </div>
+            </div>
+        </div>
+
+        <!-- view-dre-budget removida: DRE Mensal Budget substituído por DRE Mensal Budget-2 -->
+    </nav>
+
+    <main id="main-container" class="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        
+        <!-- Secondary Navbar Removed -->
+
+        <div id="view-import" class="fade-in block">
+            <div class="max-w-7xl mx-auto bg-white rounded-lg shadow p-6">
+                <h2 id="import-title" class="text-lg font-semibold mb-4">Importar Arquivo</h2>
+                
+                <div id="import-type-badge" class="mb-4 inline-block px-3 py-1 rounded-full text-sm font-bold bg-gray-100 text-gray-800">
+                    Selecione uma aba
+                </div>
+
+                <div class="p-8 border-2 border-dashed border-gray-300 rounded-lg text-center hover:bg-gray-50 transition-colors">
+                    <i class="fa-solid fa-file-excel text-green-600 text-4xl mb-4"></i>
+                    <p id="import-description" class="text-gray-600 mb-4">Selecione o arquivo mensal (.xlsx ou .xls)</p>
+                    <p id="budget-import-guidance" class="text-sm text-gray-700 bg-yellow-50 border border-yellow-100 rounded px-3 py-2 mx-auto max-w-2xl hidden">Formato da coluna <strong>Valor</strong>: use <strong>vírgula</strong> para decimais e <strong>ponto</strong> apenas como separador de milhares. Exemplos: 143.991,50 • 220.834,00 • 159259</p>
+                    <input type="file" id="fileInput" accept=".xlsx, .xls" class="hidden" onchange="app.handleFileSelect(this)">
+                    <button onclick="document.getElementById('fileInput').click()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition">
+                        Selecionar Arquivo
+                    </button>
+                    <p id="fileName" class="mt-2 text-sm text-gray-500 font-medium"></p>
+                </div>
+
+                <div id="preview-section" class="hidden mt-6">
+                    <div class="flex justify-between items-center mb-2">
+                        <h3 class="font-medium text-gray-700">Pré-visualização (Primeiras 5 linhas válidas)</h3>
+                        <span id="preview-filter-hint" class="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded"></span>
+                    </div>
+                    <div class="overflow-x-auto border rounded-lg">
+                        <table class="min-w-full divide-y divide-gray-200 text-sm">
+                            <thead class="bg-gray-100">
+                                <tr id="preview-header">
+                                    </tr>
+                            </thead>
+                            <tbody id="preview-body" class="bg-white divide-y divide-gray-200">
+                                </tbody>
+                        </table>
+                    </div>
+                    <div id="preview-missing-centros" class="mt-4 hidden"></div>
+                    <div class="mt-4 flex justify-end gap-3">
+                        <button onclick="app.cancelImport()" class="px-4 py-2 border border-gray-300 rounded text-gray-700 hover:bg-gray-50">Cancelar</button>
+                        <button id="btn-auto-map-preview" onclick="app.autoMapPreview()" class="px-4 py-2 border border-blue-300 rounded text-blue-700 hover:bg-blue-50">Auto-map (Preview)</button>
+                        <button id="btn-auto-map-apply" onclick="app.autoMapApply()" class="px-4 py-2 border border-green-300 rounded text-green-700 hover:bg-green-50">Auto-map (Apply)</button>
+                        <button onclick="app.exportUnmappedBudgetCSV()" id="btn-export-unmapped" class="px-4 py-2 border border-indigo-300 rounded text-indigo-700 hover:bg-indigo-50">Exportar Budget Não Mapeado</button>
+                        <button id="btn-backup-data" onclick="app.backupDataAndNotify()" class="px-4 py-2 border border-gray-300 rounded text-gray-700 hover:bg-gray-50">Backup Dados</button>
+                        <!-- Botão de multiplicar removido: import deve usar valores do arquivo sem escalas -->
+                        <button onclick="app.confirmImport()" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 shadow">Confirmar Importação (Adicionar/Atualizar)</button>
+                    </div>
+                </div>
+
+                <div id="plano-contas-list-section" class="hidden mt-8">
+                    <h2 class="text-lg font-semibold mb-4">Plano de Contas Importado</h2>
+                    <div class="flex justify-end mb-4">
+                        <button onclick="app.exportPlanoContas()" class="px-3 py-2 bg-green-600 text-white text-xs font-bold rounded hover:bg-green-700 shadow flex items-center gap-2">
+                            <i class="fa-solid fa-file-excel"></i> Exportar Plano de Contas
+                        </button>
+                    </div>
+                    <div class="overflow-x-auto border rounded-lg max-h-[600px]">
+                        <table class="min-w-full divide-y divide-gray-200 text-sm">
+                            <thead class="bg-gray-100 sticky top-0 z-10">
+                                <tr>
+                                    <th class="px-3 py-2 text-left font-medium text-gray-500">Conta Reduzida</th>
+                                    <th class="px-3 py-2 text-left font-medium text-gray-500">Conta Grande</th>
+                                    <th class="px-3 py-2 text-left font-medium text-gray-500">Descrição</th>
+                                    <th class="px-3 py-2 text-left font-medium text-gray-500">Conta OCRA</th>
+                                </tr>
+                            </thead>
+                            <tbody id="plano-contas-body" class="bg-white divide-y divide-gray-200">
+                                <!-- Data will be rendered here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div id="balance-list-section" class="hidden mt-8">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-lg font-semibold">Balanço e Pos EBIT Importados</h2>
+                        <div class="flex gap-2">
+                            <button onclick="app.exportBalanceData()" class="px-3 py-2 bg-green-600 text-white text-xs font-bold rounded hover:bg-green-700 shadow flex items-center gap-2">
+                                <i class="fa-solid fa-file-excel"></i> Exportar Excel
+                            </button>
+                            <button onclick="app.clearBalanceData()" class="text-red-600 hover:text-red-800 text-sm font-bold">
+                                <i class="fa-solid fa-trash"></i> Limpar Tudo
+                            </button>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto border rounded-lg max-h-[600px]">
+                        <table class="min-w-full divide-y divide-gray-200 text-xs">
+                            <thead class="bg-gray-100 sticky top-0 z-10">
+                                <tr>
+                                    <th class="px-2 py-2 text-left font-medium text-gray-500">Conta Red.</th>
+                                    <th class="px-2 py-2 text-left font-medium text-gray-500">Conta Grande</th>
+                                    <th class="px-2 py-2 text-left font-medium text-gray-500">Descrição</th>
+                                    <th class="px-2 py-2 text-left font-medium text-gray-500">Conta OCRA</th>
+                                    <th class="px-2 py-2 text-right font-medium text-gray-500">Saldo Final</th>
+                                    <th class="px-2 py-2 text-left font-medium text-gray-500">Mês/Ano</th>
+                                </tr>
+                            </thead>
+                            <tbody id="balance-list-body" class="bg-white divide-y divide-gray-200 font-mono">
+                                <!-- Data will be rendered here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="view-mgmt-fee" class="hidden fade-in">
+            <div class="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h2 class="text-lg font-semibold mb-4 text-purple-800">Lançamento Manual - Management Fee</h2>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="col-span-1">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Mês</label>
+                            <select id="mgmt-month" class="w-full rounded border-gray-300 border p-2 text-sm">
+                                <option value="1">Janeiro</option><option value="2">Fevereiro</option>
+                                <option value="3">Março</option><option value="4">Abril</option>
+                                <option value="5">Maio</option><option value="6">Junho</option>
+                                <option value="7">Julho</option><option value="8">Agosto</option>
+                                <option value="9">Setembro</option><option value="10">Outubro</option>
+                                <option value="11">Novembro</option><option value="12">Dezembro</option>
+                            </select>
+                        </div>
+                        <div class="col-span-1">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Ano</label>
+                            <input type="number" id="mgmt-year" class="w-full rounded border-gray-300 border p-2 text-sm">
+                        </div>
+                        <div class="col-span-2">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Valor (Positivo)</label>
+                            <input type="text" id="mgmt-value" class="w-full rounded border-gray-300 border p-2 text-sm" placeholder="Ex: 5.000,00" oninput="app.maskCurrency(this)">
+                            <p class="text-xs text-gray-500 mt-1">Insira o valor usando vírgula para centavos (Ex: 1.000,00).</p>
+                        </div>
+                        <div class="col-span-2 mt-2">
+                            <button onclick="app.addMgmtFee()" class="w-full bg-purple-600 text-white font-bold py-2 px-4 rounded hover:bg-purple-700 transition">
+                                Adicionar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="w-full mx-auto bg-white rounded-lg shadow p-6">
+                    <h2 class="text-lg font-semibold mb-4 text-purple-800">Registros Salvos (Conta 9999)</h2>
+                    <div class="overflow-x-auto border rounded">
+                    <table class="min-w-full divide-y divide-gray-200 text-[14px]">
+                        <thead class="bg-gray-100">
+                            <tr>
+                                <th class="px-2 py-1 text-left font-medium text-gray-500 sticky left-0 bg-gray-100 z-10 min-w-[64px]">Período</th>
+                                <th class="px-2 py-1 text-right min-w-[100px]">Valor</th>
+                                <th class="px-2 py-1 text-center">Ação</th>
+                            </tr>
+                        </thead>
+                        <tbody id="mgmt-list-body" class="divide-y divide-gray-200 bg-white">
+                        </tbody>
+                    </table>
+                    </div>
+                    <p id="mgmt-empty-msg" class="text-gray-500 text-sm mt-2 text-center hidden">Nenhum registro encontrado.</p>
+                </div>
+            </div>
+
+            <!-- Nova seção de Detalhamento Management Fee -->
+            <div class="w-full mx-auto bg-white rounded-lg shadow p-6 mt-6 max-w-[calc(100vw-3rem)]">
+                <h2 class="text-lg font-semibold mb-4 text-purple-800">Detalhamento Management Fee (Ocra + Cálculo)</h2>
+                
+                <div class="mb-4 flex items-end gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Ano de Referência</label>
+                        <input type="number" id="mgmt-detail-year" class="w-32 rounded border-gray-300 border p-2 text-sm" value="2025" onchange="app.loadMgmtDetail()">
+                    </div>
+                    <button onclick="app.saveMgmtDetail(true)" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded shadow transition mb-[1px]">
+                        <i class="fa-solid fa-save mr-2"></i>Salvar
+                    </button>
+                </div>
+
+                    <div class="overflow-x-auto border rounded">
+                    <table class="min-w-full divide-y divide-gray-200 text-[14px]">
+                        <thead class="bg-gray-100">
+                            <tr>
+                                <th class="px-2 py-1 text-left font-medium text-gray-500 sticky left-0 bg-gray-100 z-10 min-w-[64px]">Débito</th>
+                                <th class="px-2 py-1 text-left font-medium text-gray-500 sticky left-0 bg-gray-100 z-10 min-w-[64px]">Crédito</th>
+                                <th class="px-2 py-1 text-left font-medium text-gray-500 sticky left-0 bg-gray-100 z-10 min-w-[100px]">Descrição</th>
+                                <th class="px-2 py-1 text-right min-w-[44px]">Jan</th>
+                                <th class="px-2 py-1 text-right min-w-[44px]">Fev</th>
+                                <th class="px-2 py-1 text-right min-w-[44px]">Mar</th>
+                                <th class="px-2 py-1 text-right min-w-[44px]">Abr</th>
+                                <th class="px-2 py-1 text-right min-w-[44px]">Mai</th>
+                                <th class="px-2 py-1 text-right min-w-[44px]">Jun</th>
+                                <th class="px-2 py-1 text-right min-w-[44px]">Jul</th>
+                                <th class="px-2 py-1 text-right min-w-[44px]">Ago</th>
+                                <th class="px-2 py-1 text-right min-w-[44px]">Set</th>
+                                <th class="px-2 py-1 text-right min-w-[44px]">Out</th>
+                                <th class="px-2 py-1 text-right min-w-[44px]">Nov</th>
+                                <th class="px-2 py-1 text-right min-w-[44px]">Dez</th>
+                                <th class="px-2 py-1 text-right font-bold min-w-[80px] bg-gray-200">TOTAL</th>
+                            </tr>
+                        </thead>
+                        <tbody id="mgmt-detail-body" class="divide-y divide-gray-200 bg-white">
+                            <!-- Linhas geradas via JS ou estáticas -->
+                            <tr>
+                                <td class="p-0.5 sticky left-0 bg-white z-10"><input type="text" data-row="ocra" data-col="debit" class="w-full border-gray-300 rounded text-[12px] mgmt-account" placeholder="Conta" onchange="app.saveMgmtDetail()"></td>
+                                <td class="p-0.5 sticky left-0 bg-white z-10"><input type="text" data-row="ocra" data-col="credit" class="w-full border-gray-300 rounded text-[12px] mgmt-account" placeholder="Conta" onchange="app.saveMgmtDetail()"></td>
+                                <td class="px-2 py-1 font-medium sticky left-0 bg-white z-10">Management fee Ocra</td>
+                                <!-- Inputs gerados via loop no JS para não poluir HTML -->
+                                <td class="p-0.5"><input type="text" data-row="ocra" data-month="1" class="w-full text-right border-gray-300 rounded text-[12px] mgmt-input" oninput="app.calcMgmtDetail(this)"></td>
+                                <td class="p-0.5"><input type="text" data-row="ocra" data-month="2" class="w-full text-right border-gray-300 rounded text-[12px] mgmt-input" oninput="app.calcMgmtDetail(this)"></td>
+                                <td class="p-0.5"><input type="text" data-row="ocra" data-month="3" class="w-full text-right border-gray-300 rounded text-[12px] mgmt-input" oninput="app.calcMgmtDetail(this)"></td>
+                                <td class="p-0.5"><input type="text" data-row="ocra" data-month="4" class="w-full text-right border-gray-300 rounded text-[12px] mgmt-input" oninput="app.calcMgmtDetail(this)"></td>
+                                <td class="p-0.5"><input type="text" data-row="ocra" data-month="5" class="w-full text-right border-gray-300 rounded text-[12px] mgmt-input" oninput="app.calcMgmtDetail(this)"></td>
+                                <td class="p-0.5"><input type="text" data-row="ocra" data-month="6" class="w-full text-right border-gray-300 rounded text-[12px] mgmt-input" oninput="app.calcMgmtDetail(this)"></td>
+                                <td class="p-0.5"><input type="text" data-row="ocra" data-month="7" class="w-full text-right border-gray-300 rounded text-[12px] mgmt-input" oninput="app.calcMgmtDetail(this)"></td>
+                                <td class="p-0.5"><input type="text" data-row="ocra" data-month="8" class="w-full text-right border-gray-300 rounded text-[12px] mgmt-input" oninput="app.calcMgmtDetail(this)"></td>
+                                <td class="p-0.5"><input type="text" data-row="ocra" data-month="9" class="w-full text-right border-gray-300 rounded text-[12px] mgmt-input" oninput="app.calcMgmtDetail(this)"></td>
+                                <td class="p-0.5"><input type="text" data-row="ocra" data-month="10" class="w-full text-right border-gray-300 rounded text-[12px] mgmt-input" oninput="app.calcMgmtDetail(this)"></td>
+                                <td class="p-0.5"><input type="text" data-row="ocra" data-month="11" class="w-full text-right border-gray-300 rounded text-[12px] mgmt-input" oninput="app.calcMgmtDetail(this)"></td>
+                                <td class="p-0.5"><input type="text" data-row="ocra" data-month="12" class="w-full text-right border-gray-300 rounded text-[12px] mgmt-input" oninput="app.calcMgmtDetail(this)"></td>
+                                <td class="px-2 py-1 text-right font-bold bg-gray-50" id="total-row-ocra">0,00</td>
+                            </tr>
+                            <tr>
+                                <td class="p-0.5 sticky left-0 bg-white z-10"><input type="text" data-row="calc" data-col="debit" class="w-full border-gray-300 rounded text-[12px] mgmt-account" placeholder="Conta" onchange="app.saveMgmtDetail()"></td>
+                                <td class="p-0.5 sticky left-0 bg-white z-10"><input type="text" data-row="calc" data-col="credit" class="w-full border-gray-300 rounded text-[12px] mgmt-account" placeholder="Conta" onchange="app.saveMgmtDetail()"></td>
+                                <td class="px-2 py-1 font-medium sticky left-0 bg-white z-10">Management Fee Calculo</td>
+                                <td class="p-0.5"><input type="text" data-row="calc" data-month="1" class="w-full text-right border-gray-300 rounded text-[12px] mgmt-input" oninput="app.calcMgmtDetail(this)"></td>
+                                <td class="p-0.5"><input type="text" data-row="calc" data-month="2" class="w-full text-right border-gray-300 rounded text-[12px] mgmt-input" oninput="app.calcMgmtDetail(this)"></td>
+                                <td class="p-0.5"><input type="text" data-row="calc" data-month="3" class="w-full text-right border-gray-300 rounded text-[12px] mgmt-input" oninput="app.calcMgmtDetail(this)"></td>
+                                <td class="p-0.5"><input type="text" data-row="calc" data-month="4" class="w-full text-right border-gray-300 rounded text-[12px] mgmt-input" oninput="app.calcMgmtDetail(this)"></td>
+                                <td class="p-0.5"><input type="text" data-row="calc" data-month="5" class="w-full text-right border-gray-300 rounded text-[12px] mgmt-input" oninput="app.calcMgmtDetail(this)"></td>
+                                <td class="p-0.5"><input type="text" data-row="calc" data-month="6" class="w-full text-right border-gray-300 rounded text-[12px] mgmt-input" oninput="app.calcMgmtDetail(this)"></td>
+                                <td class="p-0.5"><input type="text" data-row="calc" data-month="7" class="w-full text-right border-gray-300 rounded text-[12px] mgmt-input" oninput="app.calcMgmtDetail(this)"></td>
+                                <td class="p-0.5"><input type="text" data-row="calc" data-month="8" class="w-full text-right border-gray-300 rounded text-[12px] mgmt-input" oninput="app.calcMgmtDetail(this)"></td>
+                                <td class="p-0.5"><input type="text" data-row="calc" data-month="9" class="w-full text-right border-gray-300 rounded text-[12px] mgmt-input" oninput="app.calcMgmtDetail(this)"></td>
+                                <td class="p-0.5"><input type="text" data-row="calc" data-month="10" class="w-full text-right border-gray-300 rounded text-[12px] mgmt-input" oninput="app.calcMgmtDetail(this)"></td>
+                                <td class="p-0.5"><input type="text" data-row="calc" data-month="11" class="w-full text-right border-gray-300 rounded text-[12px] mgmt-input" oninput="app.calcMgmtDetail(this)"></td>
+                                <td class="p-0.5"><input type="text" data-row="calc" data-month="12" class="w-full text-right border-gray-300 rounded text-[12px] mgmt-input" oninput="app.calcMgmtDetail(this)"></td>
+                                <td class="px-2 py-1 text-right font-bold bg-gray-50" id="total-row-calc">0,00</td>
+                            </tr>
+                            <tr class="bg-purple-50 font-bold">
+                                <td class="px-2 py-1 sticky left-0 bg-purple-50 z-10" colspan="3">Total Management fee</td>
+                                <td class="px-2 py-1 text-right" id="total-col-1">0,00</td>
+                                <td class="px-2 py-1 text-right" id="total-col-2">0,00</td>
+                                <td class="px-2 py-1 text-right" id="total-col-3">0,00</td>
+                                <td class="px-2 py-1 text-right" id="total-col-4">0,00</td>
+                                <td class="px-2 py-1 text-right" id="total-col-5">0,00</td>
+                                <td class="px-2 py-1 text-right" id="total-col-6">0,00</td>
+                                <td class="px-2 py-1 text-right" id="total-col-7">0,00</td>
+                                <td class="px-2 py-1 text-right" id="total-col-8">0,00</td>
+                                <td class="px-2 py-1 text-right" id="total-col-9">0,00</td>
+                                <td class="px-2 py-1 text-right" id="total-col-10">0,00</td>
+                                <td class="px-2 py-1 text-right" id="total-col-11">0,00</td>
+                                <td class="px-2 py-1 text-right" id="total-col-12">0,00</td>
+                                <td class="px-2 py-1 text-right font-bold bg-purple-100" id="grand-total-mgmt">0,00</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div id="view-data" class="hidden fade-in">
+            <div class="max-w-7xl mx-auto bg-white rounded-lg shadow p-6">
+                <div class="flex justify-between items-center mb-6">
+                    <div>
+                        <h2 class="text-lg font-semibold">Base de Dados Completa</h2>
+                        <p class="text-sm text-gray-500">Dados agrupados. Total: <span id="total-records">0</span></p>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="app.clearAllData()" class="px-3 py-2 text-sm text-red-600 border border-red-200 rounded hover:bg-red-50">
+                            <i class="fa-solid fa-trash"></i> Limpar Tudo
+                        </button>
+                        <button onclick="app.exportCalculatedTaxDetail()" class="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white text-sm font-bold rounded shadow">
+                            <i class="fa-solid fa-file-excel"></i> Exportar 3204 Detalhe
+                        </button>
+                        <button onclick="app.exportExcel()" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-bold rounded shadow">
+                            <i class="fa-solid fa-file-excel"></i> Exportar Dados Base
+                        </button>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto border rounded-lg max-h-[600px]">
+                    <table class="min-w-full divide-y divide-gray-200 text-sm">
+                        <thead class="bg-gray-100 sticky top-0 z-10">
+                            <tr>
+                                <th class="px-3 py-2 text-left font-medium text-gray-500">Tipo</th>
+                                <th class="px-3 py-2 text-left font-medium text-gray-500">Mês</th>
+                                <th class="px-3 py-2 text-left font-medium text-gray-500">Ano</th>
+                                <th class="px-3 py-2 text-left font-medium text-gray-500">Conta</th>
+                                <th class="px-3 py-2 text-left font-medium text-gray-500">Conta Ocra</th>
+                                <th class="px-3 py-2 text-left font-medium text-gray-500">Descrição</th>
+                                <th class="px-3 py-2 text-right font-medium text-gray-500">Valor</th>
+                                <th class="px-3 py-2 text-left font-medium text-gray-500">C. Custo</th>
+                                <th class="px-3 py-2 text-left font-medium text-gray-500">Depto</th>
+                                <th class="px-3 py-2 text-left font-medium text-gray-500">Cliente</th>
+                                <th class="px-3 py-2 text-left font-medium text-gray-500">SB/D</th>
+                                <th class="px-3 py-2 text-left font-medium text-gray-500">Project Type</th>
+                                <th class="px-3 py-2 text-center font-medium text-gray-500">Ação</th>
+                            </tr>
+                        </thead>
+                        <tbody id="database-body" class="bg-white divide-y divide-gray-200">
+                            </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div id="view-centros-custo" class="hidden fade-in">
+            <div class="max-w-7xl mx-auto bg-white rounded-lg shadow p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <div>
+                        <h2 class="text-lg font-semibold">Cadastro - Centro de Custos</h2>
+                        <p class="text-sm text-gray-500">Faça upload de um arquivo (.xlsx) com as 6 colunas: Project ID, Descrição, Cliente, Departamento, SB/D, Project Type.</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <input type="file" id="fileCentros" accept=".xlsx,.xls" class="hidden" onchange="app.handleCentrosFile(this)">
+                        <button onclick="document.getElementById('fileCentros').click()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Importar Arquivo</button>
+                        <button onclick="app.clearCentrosCusto()" class="px-4 py-2 border border-red-300 text-red-700 rounded hover:bg-red-50">Limpar</button>
+                        <button onclick="app.exportCentrosCusto()" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">Exportar Centro de Custos</button>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto border rounded-lg max-h-[420px]">
+                    <table class="min-w-full divide-y divide-gray-200 text-sm">
+                        <thead class="bg-gray-100 sticky top-0 z-10">
+                            <tr>
+                                <th class="px-3 py-2 text-left font-medium text-gray-500">Project ID</th>
+                                <th class="px-3 py-2 text-left font-medium text-gray-500">Descrição</th>
+                                <th class="px-3 py-2 text-left font-medium text-gray-500">Cliente</th>
+                                <th class="px-3 py-2 text-left font-medium text-gray-500">Departamento</th>
+                                <th class="px-3 py-2 text-left font-medium text-gray-500">SB/D</th>
+                                <th class="px-3 py-2 text-left font-medium text-gray-500">Project Type</th>
+                                <th class="px-3 py-2 text-center font-medium text-gray-500">Ação</th>
+                            </tr>
+                        </thead>
+                        <tbody id="centros-custo-body" class="bg-white divide-y divide-gray-200">
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="mt-4 grid grid-cols-1 md:grid-cols-6 gap-2">
+                    <input id="cc-projectid" placeholder="Project ID" class="border p-2 rounded text-sm md:col-span-1">
+                    <input id="cc-desc" placeholder="Descrição" class="border p-2 rounded text-sm md:col-span-2">
+                    <input id="cc-cliente" placeholder="Cliente" class="border p-2 rounded text-sm md:col-span-1">
+                    <input id="cc-depto" placeholder="Departamento" class="border p-2 rounded text-sm md:col-span-1">
+                    <input id="cc-sbd" placeholder="SB/D" class="border p-2 rounded text-sm md:col-span-1">
+                    <input id="cc-projtype" placeholder="Project Type" class="border p-2 rounded text-sm md:col-span-1">
+                </div>
+                <div class="mt-3 flex gap-2">
+                    <button onclick="app.addCentroCustoFromInputs()" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">Adicionar</button>
+                    <button onclick="app.saveCentrosCusto()" class="px-4 py-2 border border-gray-300 rounded">Salvar</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="view-dre" class="hidden fade-in">
+            <div class="bg-white rounded-lg shadow p-4">
+                <div class="mb-2 bg-gray-50 p-2 rounded border border-gray-200">
+                    <div class="flex flex-wrap gap-2 items-end">
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 mb-1">Ano</label>
+                            <select id="dre-year-select" onchange="app.renderDRE()" class="filter-select font-bold text-blue-800"></select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 mb-1">Centro de Custo</label>
+                            <input list="dl-cc" id="dre-filter-cc" onchange="app.renderDRE()" class="filter-select" placeholder="Todos...">
+                            <datalist id="dl-cc"></datalist>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 mb-1">Depto</label>
+                            <input list="dl-dept" id="dre-filter-dept" onchange="app.renderDRE()" class="filter-select" placeholder="Todos...">
+                            <datalist id="dl-dept"></datalist>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 mb-1">Cliente</label>
+                            <input list="dl-client" id="dre-filter-client" onchange="app.renderDRE()" class="filter-select" placeholder="Todos...">
+                            <datalist id="dl-client"></datalist>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 mb-1">SB/D</label>
+                            <input list="dl-sbd" id="dre-filter-sbd" onchange="app.renderDRE()" class="filter-select" placeholder="Todos...">
+                            <datalist id="dl-sbd"></datalist>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 mb-1">Project Type</label>
+                            <input list="dl-proj" id="dre-filter-proj" onchange="app.renderDRE()" class="filter-select" placeholder="Todos...">
+                            <datalist id="dl-proj"></datalist>
+                        </div>
+
+                        <!-- Tipo DRE removido: aba Mensal mostra apenas Actual -->
+
+                        <!-- Botão Rateio ADM -->
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 mb-1">&nbsp;</label>
+                                <button onclick="app.toggleAdmAllocation()" id="btn-rateio-adm" class="px-3 py-1 bg-purple-600 text-white text-xs font-bold rounded hover:bg-purple-700 shadow flex items-center gap-2" title="Ratear ADM por Heads">
+                                <i class="fa-solid fa-users-gear"></i> Ratear ADM
+                            </button>
+                        </div>
+                            <!-- Botão Detalhe YTD removido aba DRE -->
+
+                        <div class="ml-auto flex gap-2">
+                            <button onclick="app.clearDREFilters()" class="px-3 py-2 bg-gray-400 text-white text-xs font-bold rounded hover:bg-gray-500 shadow flex items-center gap-2" title="Limpar Filtros">
+                                <i class="fa-solid fa-eraser"></i> Limpar Filtros
+                            </button>
+                            <button onclick="app.toggleFullScreen()" class="px-3 py-2 bg-gray-600 text-white text-xs font-bold rounded hover:bg-gray-700 shadow flex items-center gap-2" title="Modo Foco">
+                                <i class="fa-solid fa-expand"></i>
+                            </button>
+                            <button onclick="app.exportDRE()" class="px-3 py-2 bg-blue-600 text-white text-xs font-bold rounded hover:bg-blue-700 shadow flex items-center gap-2">
+                                <i class="fa-solid fa-download"></i> Exportar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto border rounded-lg max-h-[calc(100vh-12rem)] overflow-y-auto">
+                    <table class="min-w-full divide-y divide-gray-200 text-xs">
+                        <thead class="bg-gray-800 text-white sticky top-0">
+                            <tr>
+                                <th class="px-3 py-3 text-left w-20 uppercase tracking-wider">Conta</th>
+                                <th class="px-3 py-3 text-left w-64 uppercase tracking-wider">Descrição</th>
+                                <th class="px-2 py-3 text-right w-20">Jan</th>
+                                <th class="px-2 py-3 text-right w-20">Fev</th>
+                                <th class="px-2 py-3 text-right w-20">Mar</th>
+                                <th class="px-2 py-3 text-right w-20">Abr</th>
+                                <th class="px-2 py-3 text-right w-20">Mai</th>
+                                <th class="px-2 py-3 text-right w-20">Jun</th>
+                                <th class="px-2 py-3 text-right w-20">Jul</th>
+                                <th class="px-2 py-3 text-right w-20">Ago</th>
+                                <th class="px-2 py-3 text-right w-20">Set</th>
+                                <th class="px-2 py-3 text-right w-20">Out</th>
+                                <th class="px-2 py-3 text-right w-20">Nov</th>
+                                <th class="px-2 py-3 text-right w-20">Dez</th>
+                                <th class="px-2 py-3 text-right w-24 bg-gray-900">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dre-body" class="bg-white font-mono">
+                            </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div id="view-dre-acumulado" class="hidden fade-in">
+            <div class="bg-white rounded-lg shadow p-4">
+                
+                <div class="mb-2 bg-gray-50 p-2 rounded border border-gray-200">
+                    <div class="flex flex-wrap gap-2 items-end">
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 mb-1">Ano Ref.</label>
+                            <select id="dre-acc-year" onchange="app.renderDREAcumulado()" class="filter-select font-bold text-teal-800"></select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 mb-1">Mês Acumulado Até</label>
+                            <select id="dre-acc-month" onchange="app.renderDREAcumulado()" class="filter-select font-bold text-teal-800">
+                                <option value="1">Janeiro</option><option value="2">Fevereiro</option><option value="3">Março</option>
+                                <option value="4">Abril</option><option value="5">Maio</option><option value="6">Junho</option>
+                                <option value="7">Julho</option><option value="8">Agosto</option><option value="9">Setembro</option>
+                                <option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>
+                            </select>
+                        </div>
+                        <div><label class="block text-xs font-bold text-gray-500 mb-1">C. Custo</label><input list="dl-cc-acc" id="dre-acc-cc" onchange="app.renderDREAcumulado()" class="filter-select" placeholder="Todos..."><datalist id="dl-cc-acc"></datalist></div>
+                        <div><label class="block text-xs font-bold text-gray-500 mb-1">Depto</label><input list="dl-dept-acc" id="dre-acc-dept" onchange="app.renderDREAcumulado()" class="filter-select" placeholder="Todos..."><datalist id="dl-dept-acc"></datalist></div>
+                        <div><label class="block text-xs font-bold text-gray-500 mb-1">Cliente</label><input list="dl-client-acc" id="dre-acc-client" onchange="app.renderDREAcumulado()" class="filter-select" placeholder="Todos..."><datalist id="dl-client-acc"></datalist></div>
+                        <div><label class="block text-xs font-bold text-gray-500 mb-1">SB/D</label><input list="dl-sbd-acc" id="dre-acc-sbd" onchange="app.renderDREAcumulado()" class="filter-select" placeholder="Todos..."><datalist id="dl-sbd-acc"></datalist></div>
+                        <div><label class="block text-xs font-bold text-gray-500 mb-1">Project Type</label><input list="dl-proj-acc" id="dre-acc-proj" onchange="app.renderDREAcumulado()" class="filter-select" placeholder="Todos..."><datalist id="dl-proj-acc"></datalist></div>
+                        
+                        <!-- Botão Rateio ADM (Acumulado) -->
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 mb-1">&nbsp;</label>
+                            <button onclick="app.toggleAdmAllocation()" id="btn-rateio-adm-acc" class="px-3 py-1 bg-purple-600 text-white text-xs font-bold rounded hover:bg-purple-700 shadow flex items-center gap-2" title="Ratear ADM por Heads">
+                                <i class="fa-solid fa-users-gear"></i> Ratear ADM
+                            </button>
+                        </div>
+
+                        <div class="ml-auto flex gap-2">
+                            <button onclick="app.clearDREAcumuladoFilters()" class="px-3 py-2 bg-gray-400 text-white text-xs font-bold rounded hover:bg-gray-500 shadow flex items-center gap-2" title="Limpar Filtros">
+                                <i class="fa-solid fa-eraser"></i> Limpar Filtros
+                            </button>
+                            <button onclick="app.toggleFullScreen()" class="px-3 py-2 bg-gray-600 text-white text-xs font-bold rounded hover:bg-gray-700 shadow flex items-center gap-2" title="Modo Foco">
+                                <i class="fa-solid fa-expand"></i>
+                            </button>
+                            <button onclick="app.exportDREAcumulado()" class="px-3 py-2 bg-blue-600 text-white text-xs font-bold rounded hover:bg-blue-700 shadow flex items-center gap-2">
+                                <i class="fa-solid fa-download"></i> Exportar Acumulado
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto border rounded-lg max-h-[calc(100vh-12rem)] overflow-y-auto">
+                    <table class="min-w-full divide-y divide-gray-200 text-xs">
+                        <thead class="bg-gray-800 text-white sticky top-0">
+                            <tr>
+                                <th rowspan="2" class="px-2 py-2 text-left w-16 bg-gray-900 border-r border-gray-600 sticky left-0 z-10">Descrição</th>
+                                
+                                <th colspan="4" class="header-section text-gray-800 bg-gray-200 section-border-right">Mês: Real vs Mês Anterior (MoM)</th>
+                                
+                                <th colspan="3" class="header-section text-gray-800 bg-gray-100 section-border-right">Mês: Real vs Budget (Mês)</th>
+
+                                <th colspan="4" class="header-section text-gray-800 bg-blue-100 section-border-right">YTD: Real vs Budget</th>
+                                
+                                <th colspan="4" class="header-section text-gray-800 bg-yellow-100 section-border-right">YTD: Real vs Ano Anterior</th>
+
+                                <th colspan="4" class="header-section text-gray-800 bg-green-100 section-border-right">Projeção: YTD Real vs FY Budget</th>
+
+                                <th colspan="1" class="header-section text-gray-800 bg-purple-100">LTM</th>
+                            </tr>
+                            <tr class="text-[10px] uppercase tracking-wider text-gray-600">
+                                <th class="px-2 py-1 text-right bg-gray-50 w-12">Mês Atual</th>
+                                <th class="px-2 py-1 text-right bg-gray-50 w-12">Mês Ant.</th>
+                                <th class="px-2 py-1 text-right bg-gray-50 w-12 var-col">Var $</th> <th class="px-2 py-1 text-right bg-gray-50 w-10 var-col section-border-right">Var %</th>
+                                
+                                <th class="px-2 py-1 text-right bg-gray-50 w-12 section-border-left">Mês Budget</th>
+                                <th class="px-2 py-1 text-right bg-gray-50 w-12">Var $ M vs B</th>
+                                <th class="px-2 py-1 text-right bg-gray-50 w-10 var-col section-border-right">Var % M vs B</th>
+
+                                <th class="px-2 py-1 text-right bg-blue-50 w-12 section-border-left">YTD Real</th>
+                                <th class="px-2 py-1 text-right bg-blue-50 w-12">YTD Bud</th>
+                                <th class="px-2 py-1 text-right bg-blue-50 w-12 var-col">Var $</th> <th class="px-2 py-1 text-right bg-blue-50 w-10 var-col section-border-right">Var %</th>
+                                
+                                <th class="px-2 py-1 text-right bg-yellow-50 w-12 section-border-left">YTD Real</th>
+                                <th class="px-2 py-1 text-right bg-yellow-50 w-12">YTD Ant.</th>
+                                <th class="px-2 py-1 text-right bg-yellow-50 w-12 var-col">Var $</th> <th class="px-2 py-1 text-right bg-yellow-50 w-10 var-col section-border-right">Var %</th>
+                                
+                                <th class="px-2 py-1 text-right bg-green-50 w-12 section-border-left">YTD Real</th>
+                                <th class="px-2 py-1 text-right bg-green-50 w-12">FY Budget</th>
+                                <th class="px-2 py-1 text-right bg-green-50 w-12 var-col">Var $</th>
+                                <th class="px-2 py-1 text-right bg-green-50 w-10 var-col section-border-right">Perc. Atin. %</th>
+                                
+                                <th class="px-2 py-1 text-right bg-purple-50 w-16 font-bold">Últ. 12 Meses</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dre-acumulado-body" class="bg-white font-mono divide-y divide-gray-100">
+                            </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <div id="view-dre-budget-2" class="hidden fade-in">
+            <div class="bg-white rounded-lg shadow p-4">
+                <div class="mb-2 bg-gray-50 p-2 rounded border border-gray-200">
+                    <div class="flex flex-wrap gap-2 items-end">
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 mb-1">Ano</label>
+                            <select id="dre-b2-year" onchange="app.renderDREBudget2()" class="filter-select font-bold text-teal-800"></select>
+                        </div>
+                        <div><label class="block text-xs font-bold text-gray-500 mb-1">C. Custo</label><input list="dl-cc-b2" id="dre-b2-cc" onchange="app.renderDREBudget2()" class="filter-select" placeholder="Todos..."><datalist id="dl-cc-b2"></datalist></div>
+                        <div><label class="block text-xs font-bold text-gray-500 mb-1">Depto</label><input list="dl-dept-b2" id="dre-b2-dept" onchange="app.renderDREBudget2()" class="filter-select" placeholder="Todos..."><datalist id="dl-dept-b2"></datalist></div>
+                        <div><label class="block text-xs font-bold text-gray-500 mb-1">Cliente</label><input list="dl-client-b2" id="dre-b2-client" onchange="app.renderDREBudget2()" class="filter-select" placeholder="Todos..."><datalist id="dl-client-b2"></datalist></div>
+                        <div><label class="block text-xs font-bold text-gray-500 mb-1">SB/D</label><input list="dl-sbd-b2" id="dre-b2-sbd" onchange="app.renderDREBudget2()" class="filter-select" placeholder="Todos..."><datalist id="dl-sbd-b2"></datalist></div>
+                        <div><label class="block text-xs font-bold text-gray-500 mb-1">Project Type</label><input list="dl-proj-b2" id="dre-b2-proj" onchange="app.renderDREBudget2()" class="filter-select" placeholder="Todos..."><datalist id="dl-proj-b2"></datalist></div>
+                        <div class="ml-auto flex gap-2">
+                            <button onclick="app.clearDREBudget2Filters()" class="px-3 py-2 bg-gray-400 text-white text-xs font-bold rounded hover:bg-gray-500 shadow flex items-center gap-2" title="Limpar Filtros">
+                                <i class="fa-solid fa-eraser"></i> Limpar Filtros
+                            </button>
+                            <button onclick="app.toggleFullScreen()" class="px-3 py-2 bg-gray-600 text-white text-xs font-bold rounded hover:bg-gray-700 shadow flex items-center gap-2" title="Modo Foco">
+                                <i class="fa-solid fa-expand"></i>
+                            </button>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-500 mb-1">&nbsp;</label>
+                                <button onclick="app.toggleAdmAllocation()" id="btn-rateio-adm-budget" class="px-3 py-1 bg-purple-600 text-white text-xs font-bold rounded hover:bg-purple-700 shadow flex items-center gap-2" title="Ratear ADM por Heads">
+                                    <i class="fa-solid fa-users-gear"></i> Ratear ADM
+                                </button>
+                            </div>
+                            <button onclick="app.exportDREBudget2 && app.exportDREBudget2()" class="px-3 py-2 bg-blue-600 text-white text-xs font-bold rounded hover:bg-blue-700 shadow flex items-center gap-2">
+                                <i class="fa-solid fa-download"></i> Exportar
+                            </button>
+                            <button onclick="app.openBudgetSummaryPanel()" id="btn-budget-summary" class="px-3 py-2 bg-indigo-600 text-white text-xs font-bold rounded hover:bg-indigo-700 shadow flex items-center gap-2" title="Resumo Budget por Conta">
+                                <i class="fa-solid fa-list"></i> Resumo Budget
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto border rounded-lg max-h-[calc(100vh-12rem)] overflow-y-auto">
+                    <table class="min-w-full divide-y divide-gray-200 text-xs">
+                        <thead class="bg-gray-800 text-white sticky top-0">
+                            <tr>
+                                <th class="px-2 py-2 text-left w-32 bg-gray-900 border-r border-gray-600 sticky left-0 z-10">Conta</th>
+                                <th class="px-2 py-2 text-left w-48 bg-gray-900 border-r border-gray-600 sticky left-0 z-10">Descrição</th>
+                                <th class="px-2 py-2 text-right">Jan</th>
+                                <th class="px-2 py-2 text-right">Fev</th>
+                                <th class="px-2 py-2 text-right">Mar</th>
+                                <th class="px-2 py-2 text-right">Abr</th>
+                                <th class="px-2 py-2 text-right">Mai</th>
+                                <th class="px-2 py-2 text-right">Jun</th>
+                                <th class="px-2 py-2 text-right">Jul</th>
+                                <th class="px-2 py-2 text-right">Ago</th>
+                                <th class="px-2 py-2 text-right">Set</th>
+                                <th class="px-2 py-2 text-right">Out</th>
+                                <th class="px-2 py-2 text-right">Nov</th>
+                                <th class="px-2 py-2 text-right">Dez</th>
+                                <th class="px-2 py-2 text-right bg-gray-900">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dre-b2-body" class="bg-white font-mono divide-y divide-gray-100">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <div id="view-dre-suecia" class="hidden fade-in">
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-semibold text-yellow-600"><i class="fa-solid fa-globe mr-2"></i> DRE Suécia</h2>
+                    <div class="flex gap-2">
+                        <button onclick="app.toggleFullScreen()" class="px-3 py-1 bg-gray-600 text-white text-xs font-bold rounded hover:bg-gray-700 shadow flex items-center gap-2" title="Modo Foco">
+                            <i class="fa-solid fa-expand"></i>
+                        </button>
+                        
+                        <select id="dre-suecia-year" class="border rounded px-2 py-1 text-sm" onchange="app.renderDRESuecia()">
+                            <!-- Years populated by JS -->
+                        </select>
+                        <select id="dre-suecia-month" class="border rounded px-2 py-1 text-sm" onchange="app.renderDRESuecia()">
+                            <option value="1">Janeiro</option><option value="2">Fevereiro</option>
+                            <option value="3">Março</option><option value="4">Abril</option>
+                            <option value="5">Maio</option><option value="6">Junho</option>
+                            <option value="7">Julho</option><option value="8">Agosto</option>
+                            <option value="9">Setembro</option><option value="10">Outubro</option>
+                            <option value="11">Novembro</option><option value="12">Dezembro</option>
+                        </select>
+                        <select id="dre-suecia-type" class="border rounded px-2 py-1 text-sm" onchange="app.renderDRESuecia()">
+                            <option value="monthly">Mensal</option>
+                            <option value="ytd">YTD (Acumulado)</option>
+                        </select>
+                        <select id="dre-suecia-view" class="border rounded px-2 py-1 text-sm font-bold text-blue-800" onchange="app.renderDRESuecia()">
+                            <option value="sbd">Visão SB/D</option>
+                            <option value="client">Visão Cliente</option>
+                            <option value="departamento">Visão Departamento</option>
+                        </select>
+                        <button id="btn-adm-alloc-suecia" onclick="app.toggleAdmAllocationSuecia()" class="px-3 py-1 bg-gray-200 text-gray-600 text-xs font-bold rounded hover:bg-gray-300 shadow transition-colors" title="Ratear custos ADM por Heads">
+                            Rateio ADM: OFF
+                        </button>
+                    </div>
+                </div>
+                <div class="overflow-x-auto border rounded-lg max-h-[calc(100vh-12rem)]">
+                                <table class="min-w-full divide-y divide-gray-200 text-xs">
+                                    <thead class="bg-gray-800 text-white sticky top-0">
+                                        <tr>
+                                            <th class="px-3 py-3 text-left w-20 uppercase tracking-wider">Tipo</th>
+                                            <th class="px-3 py-3 text-left w-24 uppercase tracking-wider">Conta OCRA</th>
+                                            <th class="px-3 py-3 text-left w-64 uppercase tracking-wider">Description</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="dre-suecia-body" class="bg-white font-mono">
+                                        <!-- Os dados do layout da imagem devem ser inseridos aqui futuramente -->
+                                        <tr><td class="font-bold bg-yellow-100" colspan="3">Exemplo de layout conforme imagem</td></tr>
+                <tr><td></td><td></td><td>Income</td><td></td></tr>
+                <tr><td>DRE</td><td>3010</td><td>Consultant fees external</td><td></td></tr>
+                <tr><td>DRE</td><td>3556</td><td>Consultant fees within own Business Area</td><td></td></tr>
+                <tr><td>DRE</td><td>3557</td><td>Consultant fees to other Business Area</td><td></td></tr>
+                <tr><td>DRE</td><td>3015</td><td>Write- up/down of fees</td><td></td></tr>
+                <tr><td>DRE</td><td>3095</td><td>Provision not invoiced WIP</td><td></td></tr>
+                <tr><td>DRE</td><td>3019</td><td>Fee other dep. within same comp.</td><td></td></tr>
+                <tr><td>DRE</td><td>3018</td><td>Costs other dep. within same comp.</td><td></td></tr>
+                <tr><td>DRE</td><td>3030</td><td>Subcontractor fees</td><td></td></tr>
+                <tr class="bg-yellow-100 font-bold"><td>DRE</td><td></td><td>Total fees</td><td id="dre-suecia-total-fees"></td></tr>
+                                    <tr><td>DRE</td><td>3413</td><td>Computers within projects</td><td></td></tr>
+                                    <tr><td>DRE</td><td>3040</td><td>Travel expenses, outlay</td><td></td></tr>
+                                    <tr><td>DRE</td><td>3050</td><td>Recharged expenses</td><td></td></tr>
+                                    <tr><td>DRE</td><td>3110</td><td>Training</td><td></td></tr>
+                                    <tr><td>DRE</td><td>3521</td><td>Sales of computers</td><td></td></tr>
+                                    <tr><td>DRE</td><td>3910</td><td>Rents</td><td></td></tr>
+                                    <tr><td>DRE</td><td>3510</td><td>Machinery fees</td><td></td></tr>
+                                    <tr><td>DRE</td><td>32101</td><td>Licences</td><td></td></tr>
+                                    <tr><td>DRE</td><td>3960</td><td>Exchange profit from business</td><td></td></tr>
+                                    <tr><td>DRE</td><td>3973</td><td>Capital gains on fixed assets</td><td></td></tr>
+                                    <tr><td>DRE</td><td>3900</td><td>Other income</td><td></td></tr>
+                                    <tr class="bg-yellow-100 font-bold"><td>DRE</td><td></td><td>TOTAL INCOME</td><td id="dre-suecia-total-income"></td></tr>
+                                    <tr><td>DRE</td><td></td><td>Production costs</td><td></td></tr>
+                                    <tr><td>DRE</td><td>7210</td><td>Salary consultants</td><td></td></tr>
+                                    <tr><td>DRE</td><td>7200</td><td>Social Security</td><td></td></tr>
+                                    <tr><td>DRE</td><td>7500</td><td>Statutory and Social Security contributions</td><td></td></tr>
+                                    <tr><td>DRE</td><td>74001</td><td>Other personnel costs, consultants</td><td></td></tr>
+                                    <tr><td>DRE</td><td>4619</td><td>Subcontractors from group comp.</td><td></td></tr>
+                                    <tr><td>DRE</td><td>4110</td><td>Subcontractors</td><td></td></tr>
+                                    <tr><td>DRE</td><td>4200</td><td>Machinery costs</td><td></td></tr>
+                                    <tr><td>DRE</td><td>4040</td><td>Licence costs</td><td></td></tr>
+                                    <tr><td>DRE</td><td>4211</td><td>Costs for computers in projects</td><td></td></tr>
+                                    <tr><td>DRE</td><td>4550</td><td>Outlay/expenses projects</td><td></td></tr>
+                                    <tr><td>DRE</td><td>4670</td><td>Material cost to customers</td><td></td></tr>
+                                    <tr><td>DRE</td><td>4630</td><td>Computer software</td><td></td></tr>
+                                    <tr><td>DRE</td><td>4223</td><td>Operating costs test</td><td></td></tr>
+                                    <tr><td>DRE</td><td>4185</td><td>Education/training costs</td><td></td></tr>
+                                    <tr><td>DRE</td><td>6624</td><td>Microsoft Licence</td><td></td></tr>
+                                    <tr><td>DRE</td><td>4022</td><td>Cost of computers for sale</td><td></td></tr>
+                                    <tr><td>DRE</td><td>4730</td><td>Other production costs</td><td></td></tr>
+                                    <tr><td>DRE</td><td>7860</td><td>Depreciation intangible assets</td><td></td></tr>
+                                    <tr><td>DRE</td><td>7850</td><td>Depreciation tangible assets</td><td></td></tr>
+                                    <tr class="bg-yellow-100 font-bold"><td>DRE</td><td></td><td>Total production costs</td><td id="dre-suecia-total-prod-costs"></td></tr>
+                                    <tr class="bg-green-100 font-bold"><td>DRE</td><td></td><td>GROSS PROFIT</td><td id="dre-suecia-gross-profit"></td></tr>
+                                    <tr><td>DRE</td><td>7110</td><td>Salary administration</td><td></td></tr>
+                                    <tr><td>DRE</td><td>7002</td><td>Salary salesmen</td><td></td></tr>
+                                    <tr><td>DRE</td><td>7003</td><td>Salary leaders</td><td></td></tr>
+                                    <tr><td>DRE</td><td>7004</td><td>Social Security</td><td></td></tr>
+                                    <tr><td>DRE</td><td>7400</td><td>Other personnel costs</td><td></td></tr>
+                                    <tr><td>DRE</td><td>5010</td><td>Office rental costs</td><td></td></tr>
+                                    <tr><td>DRE</td><td>6110</td><td>Office expenses</td><td></td></tr>
+                                    <tr><td>DRE</td><td>6300</td><td>Insurance and other riskrelated costs</td><td></td></tr>
+                                    <tr><td>DRE</td><td>6500</td><td>Consultants and external services</td><td></td></tr>
+                                    <tr><td>DRE</td><td>6200</td><td>Communication</td><td></td></tr>
+                                    <tr><td>DRE</td><td>7615</td><td>Vehicle costs</td><td></td></tr>
+                                    <tr><td>DRE</td><td>5900</td><td>Sales and marketing costs</td><td></td></tr>
+                                    <tr><td>DRE</td><td>6354</td><td>Provision doubtful debts</td><td></td></tr>
+                                    <tr><td>DRE</td><td>6352</td><td>Reserve high risk debts</td><td></td></tr>
+                                    <tr><td>DRE</td><td>7960</td><td>Exchange loss from business</td><td></td></tr>
+                                    <tr><td>DRE</td><td>6990</td><td>Other costs</td><td></td></tr>
+                                    <tr><td>DRE</td><td>6998</td><td>Reversal One-off costs</td><td></td></tr>
+                                    <tr><td>DRE</td><td>6999</td><td>One-off costs</td><td></td></tr>
+                                    <tr><td>DRE</td><td>7973</td><td>Capital losses on fixed assets</td><td></td></tr>
+                                    <tr><td>DRE</td><td>7840</td><td>Depreciation intangible assets</td><td></td></tr>
+                                    <tr><td>DRE</td><td>7830</td><td>Depreciation tangible assets</td><td></td></tr>
+                                    <tr class="bg-yellow-100 font-bold"><td>DRE</td><td></td><td>Total administration costs</td><td id="dre-suecia-total-admin-costs"></td></tr>
+                                    <tr class="bg-green-100 font-bold"><td>DRE</td><td></td><td>PROFIT BEFORE SaS</td><td id="dre-suecia-profit-before-sas"></td></tr>
+                                    <tr><td>DRE</td><td>6430</td><td>Management fee Semcon AB</td><td></td></tr>
+                                    <tr><td>DRE</td><td>7981</td><td>Shared Service fee</td><td></td></tr>
+                                    <tr><td>DRE</td><td>6435</td><td>Management fee Reduciton</td><td></td></tr>
+                                    <tr><td>DRE</td><td>6436</td><td>Internal Business Area OH</td><td></td></tr>
+                                    <tr><td>DRE</td><td>6437</td><td>Internal Region OH</td><td></td></tr>
+                                    <tr><td>DRE</td><td>7994</td><td>Other management fees</td><td></td></tr>
+                                    <tr class="bg-yellow-100 font-bold"><td>DRE</td><td></td><td>Total SaS</td><td id="dre-suecia-total-sas"></td></tr>
+                                    <tr><td>DRE</td><td>7199</td><td>Manager bonus</td><td></td></tr>
+                                    <tr class="bg-green-100 font-bold"><td>DRE</td><td></td><td>EBIT</td><td id="dre-suecia-ebit"></td></tr>
+                                    </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <div id="view-dre-departamento" class="hidden fade-in">
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-semibold text-blue-700"><i class="fa-solid fa-building mr-2"></i> DRE Departamento</h2>
+                    <div class="flex gap-2">
+                        <button onclick="app.toggleFullScreen()" class="px-3 py-1 bg-gray-600 text-white text-xs font-bold rounded hover:bg-gray-700 shadow flex items-center gap-2" title="Modo Foco">
+                            <i class="fa-solid fa-expand"></i>
+                        </button>
+                        <button onclick="app.rateioADM6437()" id="btn-rateio-adm-6437" class="px-3 py-1 bg-purple-700 text-white text-xs font-bold rounded hover:bg-purple-800 shadow flex items-center gap-2" title="Ratear ADM para OCRA 6437 por Heads Consultants">
+                            <i class="fa-solid fa-users-gear"></i> Ratear ADM (OCRA 6437)
+                        </button>
+                        <select id="dre-dept-year" class="border rounded px-2 py-1 text-sm" onchange="app.renderDREDepartamento()">
+                            <!-- Years populated by JS -->
+                        </select>
+                        <select id="dre-dept-month" class="border rounded px-2 py-1 text-sm" onchange="app.renderDREDepartamento()">
+                            <option value="1">Janeiro</option><option value="2">Fevereiro</option>
+                            <option value="3">Março</option><option value="4">Abril</option>
+                            <option value="5">Maio</option><option value="6">Junho</option>
+                            <option value="7">Julho</option><option value="8">Agosto</option>
+                            <option value="9">Setembro</option><option value="10">Outubro</option>
+                            <option value="11">Novembro</option><option value="12">Dezembro</option>
+                        </select>
+                        <select id="dre-dept-type" class="border rounded px-2 py-1 text-sm" onchange="app.renderDREDepartamento()">
+                            <option value="monthly">Mensal</option>
+                            <option value="ytd">YTD (Acumulado)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="overflow-x-auto border rounded-lg max-h-[calc(100vh-12rem)]">
+                                <table class="min-w-full divide-y divide-gray-200 text-xs">
+                                    <thead class="bg-gray-800 text-white sticky top-0">
+                                        <tr>
+                                            <th class="px-3 py-3 text-left w-20 uppercase tracking-wider">Tipo</th>
+                                            <th class="px-3 py-3 text-left w-24 uppercase tracking-wider">Conta OCRA</th>
+                                            <th class="px-3 py-3 text-left w-64 uppercase tracking-wider">Description</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="dre-departamento-body" class="bg-white font-mono">
+                                        <!-- Os dados do layout da imagem devem ser inseridos aqui futuramente -->
+                                        <tr><td class="font-bold bg-yellow-100" colspan="3">Exemplo de layout conforme imagem</td></tr>
+                <tr><td></td><td></td><td>Income</td><td></td></tr>
+                <tr><td>DRE</td><td>3010</td><td>Consultant fees external</td><td></td></tr>
+                <tr><td>DRE</td><td>3556</td><td>Consultant fees within own Business Area</td><td></td></tr>
+                <tr><td>DRE</td><td>3557</td><td>Consultant fees to other Business Area</td><td></td></tr>
+                <tr><td>DRE</td><td>3015</td><td>Write- up/down of fees</td><td></td></tr>
+                <tr><td>DRE</td><td>3095</td><td>Provision not invoiced WIP</td><td></td></tr>
+                <tr><td>DRE</td><td>3019</td><td>Fee other dep. within same comp.</td><td></td></tr>
+                <tr><td>DRE</td><td>3018</td><td>Costs other dep. within same comp.</td><td></td></tr>
+                <tr><td>DRE</td><td>3030</td><td>Subcontractor fees</td><td></td></tr>
+                <tr class="bg-yellow-100 font-bold"><td>DRE</td><td></td><td>Total fees</td><td id="dre-total-fees"></td></tr>
+                                    <tr><td>DRE</td><td>3413</td><td>Computers within projects</td><td></td></tr>
+                                    <tr><td>DRE</td><td>3040</td><td>Travel expenses, outlay</td><td></td></tr>
+                                    <tr><td>DRE</td><td>3050</td><td>Recharged expenses</td><td></td></tr>
+                                    <tr><td>DRE</td><td>3110</td><td>Training</td><td></td></tr>
+                                    <tr><td>DRE</td><td>3521</td><td>Sales of computers</td><td></td></tr>
+                                    <tr><td>DRE</td><td>3910</td><td>Rents</td><td></td></tr>
+                                    <tr><td>DRE</td><td>3510</td><td>Machinery fees</td><td></td></tr>
+                                    <tr><td>DRE</td><td>32101</td><td>Licences</td><td></td></tr>
+                                    <tr><td>DRE</td><td>3960</td><td>Exchange profit from business</td><td></td></tr>
+                                    <tr><td>DRE</td><td>3973</td><td>Capital gains on fixed assets</td><td></td></tr>
+                                    <tr><td>DRE</td><td>3900</td><td>Other income</td><td></td></tr>
+                                    <tr class="bg-yellow-100 font-bold"><td>DRE</td><td></td><td>TOTAL INCOME</td><td id="dre-total-income"></td></tr>
+                                    <tr><td>DRE</td><td></td><td>Production costs</td><td></td></tr>
+                                    <tr><td>DRE</td><td>7210</td><td>Salary consultants</td><td></td></tr>
+                                    <tr><td>DRE</td><td>7200</td><td>Social Security</td><td></td></tr>
+                                    <tr><td>DRE</td><td>7500</td><td>Statutory and Social Security contributions</td><td></td></tr>
+                                    <tr><td>DRE</td><td>74001</td><td>Other personnel costs, consultants</td><td></td></tr>
+                                    <tr><td>DRE</td><td>4619</td><td>Subcontractors from group comp.</td><td></td></tr>
+                                    <tr><td>DRE</td><td>4110</td><td>Subcontractors</td><td></td></tr>
+                                    <tr><td>DRE</td><td>4200</td><td>Machinery costs</td><td></td></tr>
+                                    <tr><td>DRE</td><td>4040</td><td>Licence costs</td><td></td></tr>
+                                    <tr><td>DRE</td><td>4211</td><td>Costs for computers in projects</td><td></td></tr>
+                                    <tr><td>DRE</td><td>4550</td><td>Outlay/expenses projects</td><td></td></tr>
+                                    <tr><td>DRE</td><td>4670</td><td>Material cost to customers</td><td></td></tr>
+                                    <tr><td>DRE</td><td>4630</td><td>Computer software</td><td></td></tr>
+                                    <tr><td>DRE</td><td>4223</td><td>Operating costs test</td><td></td></tr>
+                                    <tr><td>DRE</td><td>4185</td><td>Education/training costs</td><td></td></tr>
+                                    <tr><td>DRE</td><td>6624</td><td>Microsoft Licence</td><td></td></tr>
+                                    <tr><td>DRE</td><td>4022</td><td>Cost of computers for sale</td><td></td></tr>
+                                    <tr><td>DRE</td><td>4730</td><td>Other production costs</td><td></td></tr>
+                                    <tr><td>DRE</td><td>7860</td><td>Depreciation intangible assets</td><td></td></tr>
+                                    <tr><td>DRE</td><td>7850</td><td>Depreciation tangible assets</td><td></td></tr>
+                                    <tr class="bg-yellow-100 font-bold"><td>DRE</td><td></td><td>Total production costs</td><td id="dre-total-prod-costs"></td></tr>
+                                    <tr class="bg-green-100 font-bold"><td>DRE</td><td></td><td>GROSS PROFIT</td><td id="dre-gross-profit"></td></tr>
+                                    <tr><td>DRE</td><td>7110</td><td>Salary administration</td><td></td></tr>
+                                    <tr><td>DRE</td><td>7002</td><td>Salary salesmen</td><td></td></tr>
+                                    <tr><td>DRE</td><td>7003</td><td>Salary leaders</td><td></td></tr>
+                                    <tr><td>DRE</td><td>7004</td><td>Social Security</td><td></td></tr>
+                                    <tr><td>DRE</td><td>7400</td><td>Other personnel costs</td><td></td></tr>
+                                    <tr><td>DRE</td><td>5010</td><td>Office rental costs</td><td></td></tr>
+                                    <tr><td>DRE</td><td>6110</td><td>Office expenses</td><td></td></tr>
+                                    <tr><td>DRE</td><td>6300</td><td>Insurance and other riskrelated costs</td><td></td></tr>
+                                    <tr><td>DRE</td><td>6500</td><td>Consultants and external services</td><td></td></tr>
+                                    <tr><td>DRE</td><td>6200</td><td>Communication</td><td></td></tr>
+                                    <tr><td>DRE</td><td>7615</td><td>Vehicle costs</td><td></td></tr>
+                                    <tr><td>DRE</td><td>5900</td><td>Sales and marketing costs</td><td></td></tr>
+                                    <tr><td>DRE</td><td>6354</td><td>Provision doubtful debts</td><td></td></tr>
+                                    <tr><td>DRE</td><td>6352</td><td>Reserve high risk debts</td><td></td></tr>
+                                    <tr><td>DRE</td><td>7960</td><td>Exchange loss from business</td><td></td></tr>
+                                    <tr><td>DRE</td><td>6990</td><td>Other costs</td><td></td></tr>
+                                    <tr><td>DRE</td><td>6998</td><td>Reversal One-off costs</td><td></td></tr>
+                                    <tr><td>DRE</td><td>6999</td><td>One-off costs</td><td></td></tr>
+                                    <tr><td>DRE</td><td>7973</td><td>Capital losses on fixed assets</td><td></td></tr>
+                                    <tr><td>DRE</td><td>7840</td><td>Depreciation intangible assets</td><td></td></tr>
+                                    <tr><td>DRE</td><td>7830</td><td>Depreciation tangible assets</td><td></td></tr>
+                                    <tr class="bg-yellow-100 font-bold"><td>DRE</td><td></td><td>Total administration costs</td><td id="dre-total-admin-costs"></td></tr>
+                                    <tr class="bg-green-100 font-bold"><td>DRE</td><td></td><td>PROFIT BEFORE SaS</td><td id="dre-profit-before-sas"></td></tr>
+                                    <tr><td>DRE</td><td>6430</td><td>Management fee Semcon AB</td><td></td></tr>
+                                    <tr><td>DRE</td><td>7981</td><td>Shared Service fee</td><td></td></tr>
+                                    <tr><td>DRE</td><td>6435</td><td>Management fee Reduciton</td><td></td></tr>
+                                    <tr><td>DRE</td><td>6436</td><td>Internal Business Area OH</td><td></td></tr>
+                                    <tr><td>DRE</td><td>6437</td><td>Internal Region OH</td><td></td></tr>
+                                    <tr><td>DRE</td><td>7994</td><td>Other management fees</td><td></td></tr>
+                                    <tr class="bg-yellow-100 font-bold"><td>DRE</td><td></td><td>Total SaS</td><td id="dre-total-sas"></td></tr>
+                                    <tr><td>DRE</td><td>7199</td><td>Manager bonus</td><td></td></tr>
+                                    <tr class="bg-green-100 font-bold"><td>DRE</td><td></td><td>EBIT</td><td id="dre-ebit"></td></tr>
+                                    <tr><td>DRE</td><td>8010</td><td>Dividend from group companies</td><td></td></tr>
+                                    <tr><td>DRE</td><td>8022</td><td>Result from sale of group companies</td><td></td></tr>
+                                    <tr><td>DRE</td><td>8300</td><td>Interest income</td><td></td></tr>
+                                    <tr><td>DRE</td><td>8360</td><td>Interest income, group companies</td><td></td></tr>
+                                    <tr><td>DRE</td><td>8331</td><td>Exchange profit from financing</td><td></td></tr>
+                                    <tr><td>DRE</td><td>8390</td><td>Other financial income</td><td></td></tr>
+                                    <tr class="bg-yellow-100 font-bold"><td>DRE</td><td></td><td>Total financial income</td><td id="dre-total-fin-income"></td></tr>
+                                    <tr><td>DRE</td><td>8072</td><td>Write-down of assets in group companies</td><td></td></tr>
+                                    <tr><td>DRE</td><td>8400</td><td>Interest expenses</td><td></td></tr>
+                                    <tr><td>DRE</td><td>8412</td><td>Interest expenses pension obligations</td><td></td></tr>
+                                    <tr><td>DRE</td><td>8460</td><td>Interest expenses, group companies</td><td></td></tr>
+                                    <tr><td>DRE</td><td>8436</td><td>Exchange loss from financing</td><td></td></tr>
+                                    <tr><td>DRE</td><td>8490</td><td>Other financial expenses</td><td></td></tr>
+                                    <tr class="bg-yellow-100 font-bold"><td>DRE</td><td></td><td>Total financial expenses</td><td id="dre-total-fin-expenses"></td></tr>
+                                    <tr class="bg-green-100 font-bold"><td>DRE</td><td></td><td>Finance net</td><td id="dre-finance-net"></td></tr>
+                                    <tr class="bg-green-100 font-bold"><td>DRE</td><td></td><td>PROFIT AFTER FINANCIAL ITEMS</td><td id="dre-profit-after-fin-items"></td></tr>
+                                    <tr><td>DRE</td><td>8893</td><td>Contribution from/to group companies</td><td></td></tr>
+                                    <tr><td>DRE</td><td>8820</td><td>Centrally approved items Semcon Operative fee</td><td></td></tr>
+                                    <tr><td>DRE</td><td>8821</td><td>Centrally approved items Internal Business fee</td><td></td></tr>
+                                    <tr><td>DRE</td><td>8828</td><td>Centrally approved items Legal Service fee</td><td></td></tr>
+                                    <tr><td>DRE</td><td>8829</td><td>Centrally approved items Other</td><td></td></tr>
+                                    <tr><td>DRE</td><td>8890</td><td>Other appropriations</td><td></td></tr>
+                                    <tr class="bg-yellow-100 font-bold"><td>DRE</td><td></td><td>Total appropriations</td><td id="dre-total-appropriations"></td></tr>
+                                    <tr class="bg-green-100 font-bold"><td>DRE</td><td></td><td>PROFIT BEFORE TAXES</td><td id="dre-profit-before-taxes"></td></tr>
+                                    <tr><td>DRE</td><td>8910</td><td>Current tax</td><td></td></tr>
+                                    <tr><td>DRE</td><td>8935</td><td>WHT (Whithold tax)</td><td></td></tr>
+                                    <tr><td>DRE</td><td>8940</td><td>Deferred tax</td><td></td></tr>
+                                    <tr><td>DRE</td><td>8980</td><td>Other tax</td><td></td></tr>
+                                    <tr class="bg-yellow-100 font-bold"><td>DRE</td><td></td><td>Total tax</td><td id="dre-total-tax"></td></tr>
+                                    <tr class="bg-green-100 font-bold"><td>DRE</td><td></td><td>Net profit or loss for the year</td><td id="dre-net-profit"></td></tr>
+                                    <tr class="bg-blue-100 font-bold"><td>Balanço</td><td></td><td>ASSETS</td><td></td></tr>
+                                    <tr><td>Balanço</td><td></td><td>Fixed assets</td><td></td></tr>
+                                    <tr><td>Balanço</td><td></td><td>Intangible assets</td><td></td></tr>
+                                    <tr><td>Balanço</td><td>1070</td><td>Goodwill</td><td></td></tr>
+                                    <tr><td>Balanço</td><td>1040</td><td>Other intangible assets</td><td></td></tr>
+                                    <tr class="bg-yellow-100 font-bold"><td>Balanço</td><td></td><td>Total intangible assets</td><td id="bal-total-intangible"></td></tr>
+                                    <tr><td>Balanço</td><td></td><td></td><td></td></tr>
+                                    <tr><td>Balanço</td><td></td><td>Tangible assets</td><td></td></tr>
+                                    <tr><td>Balanço</td><td>1110</td><td>Buildings and land</td><td></td></tr>
+                                    <tr><td>Balanço</td><td>1230</td><td>Plant and machinery</td><td></td></tr>
+                                    <tr><td>Balanço</td><td>1210</td><td>Equipment</td><td></td></tr>
+                                    <tr><td>Balanço</td><td>1220</td><td>Computers</td><td></td></tr>
+                                    <tr class="bg-yellow-100 font-bold"><td>Balanço</td><td></td><td>Total tangible assets</td><td id="bal-total-tangible"></td></tr>
+                                    <tr><td>Balanço</td><td></td><td></td><td></td></tr>
+                                    <tr><td>Balanço</td><td></td><td>Financial assets</td><td></td></tr>
+                                    <tr><td>Balanço</td><td>1312</td><td>Shares in group companies</td><td></td></tr>
+                                    <tr><td>Balanço</td><td>1315</td><td>Shares in associated companies</td><td></td></tr>
+                                    <tr><td>Balanço</td><td>1370</td><td>Deferred tax assets</td><td></td></tr>
+                                    <tr><td>Balanço</td><td>1360</td><td>Long-term receivables group companies</td><td></td></tr>
+                                    <tr><td>Balanço</td><td>1388</td><td>Other financial assets</td><td></td></tr>
+                                    <tr class="bg-yellow-100 font-bold"><td>Balanço</td><td></td><td>Total financial assets</td><td id="bal-total-financial"></td></tr>
+                                    <tr class="bg-yellow-100 font-bold"><td>Balanço</td><td></td><td>Total fixed assets</td><td id="bal-total-fixed"></td></tr>
+                                    <tr><td>Balanço</td><td></td><td>Current assets</td><td></td></tr>
+                                    <tr><td>Balanço</td><td>1510</td><td>Accounts receivable, external</td><td></td></tr>
+                                    <tr><td>Balanço</td><td>1560</td><td>Accounts receivable, group companies</td><td></td></tr>
+                                    <tr><td>Balanço</td><td>1565</td><td>Accounts receivable, Ratos group companies</td><td></td></tr>
+                                    <tr><td>Balanço</td><td>1400</td><td>Inventories</td><td></td></tr>
+                                    <tr><td>Balanço</td><td>1470</td><td>Work in progress</td><td></td></tr>
+                                    <tr><td>Balanço</td><td>1640</td><td>Current tax receivable</td><td></td></tr>
+                                    <tr><td>Balanço</td><td>1600</td><td>Other current receivables, employees</td><td></td></tr>
+                                    <tr><td>Balanço</td><td>1689</td><td>Other current receivables, external</td><td></td></tr>
+                                    <tr><td>Balanço</td><td>1660</td><td>Other current receivables, group companies</td><td></td></tr>
+                                    <tr><td>Balanço</td><td>1790</td><td>Prepaid expenses and accrued income</td><td></td></tr>
+                                    <tr class="bg-yellow-100 font-bold"><td>Balanço</td><td></td><td>Total current assets excl. cash</td><td id="bal-total-current-excl-cash"></td></tr>
+                                    <tr><td>Balanço</td><td>1960</td><td>Cash pool receivables, group companies</td><td></td></tr>
+                                    <tr><td>Balanço</td><td>1800</td><td>Short-term financial investments</td><td></td></tr>
+                                    <tr><td>Balanço</td><td>1930</td><td>Cash and bank</td><td></td></tr>
+                                    <tr class="bg-yellow-100 font-bold"><td>Balanço</td><td></td><td>Total cash and bank equivalent</td><td id="bal-total-cash-bank"></td></tr>
+                                    <tr class="bg-yellow-100 font-bold"><td>Balanço</td><td></td><td>Total current assets</td><td id="bal-total-current"></td></tr>
+                                    <tr class="bg-green-100 font-bold"><td>Balanço</td><td></td><td>TOTAL ASSETS</td><td id="bal-total-assets"></td></tr>
+                                    <tr class="bg-blue-100 font-bold"><td>Balanço</td><td></td><td>SHAREHOLDERS' EQUITY AND LIABILITIES</td><td></td></tr>
+                                    <tr><td>Balanço</td><td></td><td>Shareholders' equity</td><td></td></tr>
+                                    <tr><td>Balanço</td><td></td><td>Restricted equity</td><td></td></tr>
+                                    <tr><td>Balanço</td><td>2081</td><td>Share capital</td><td></td></tr>
+                                    <tr><td>Balanço</td><td>2086</td><td>Restricted reserves</td><td></td></tr>
+                                    <tr><td>Balanço</td><td></td><td>Non-restricted equity</td><td></td></tr>
+                                    <tr><td>Balanço</td><td>2090</td><td>Profit brought forward</td><td></td></tr>
+                                    <tr><td>Balanço</td><td>2099</td><td>Net profit or loss for the year</td><td></td></tr>
+                                    <tr><td>Balanço</td><td></td><td></td><td></td></tr>
+                                    <tr><td>Balanço</td><td>2200</td><td>Minority interest</td><td></td></tr>
+                                    <tr class="bg-yellow-100 font-bold"><td>Balanço</td><td></td><td>Total shareholders' equity</td><td id="bal-total-equity"></td></tr>
+                                    <tr><td>Balanço</td><td>2190</td><td>Untaxed reserves</td><td></td></tr>
+                                    <tr><td>Balanço</td><td></td><td>Long-term liabilities</td><td></td></tr>
+                                    <tr><td>Balanço</td><td>2520</td><td>Deferred tax liabilities</td><td></td></tr>
+                                    <tr><td>Balanço</td><td>2270</td><td>Pension obligations</td><td></td></tr>
+                                    <tr><td>Balanço</td><td>2280</td><td>Other long-term provisions</td><td></td></tr>
+                                    <tr><td>Balanço</td><td>2352</td><td>Other long-term interest-bearing liabilities</td><td></td></tr>
+                                    <tr><td>Balanço</td><td>2390</td><td>Other long-term non interest-bearing liabilities</td><td></td></tr>
+                                    <tr><td>Balanço</td><td>2360</td><td>Other long-term liabilities, group companies</td><td></td></tr>
+                                    <tr class="bg-yellow-100 font-bold"><td>Balanço</td><td></td><td>Total long-term liabilities</td><td id="bal-total-long-term"></td></tr>
+                                    <tr><td>Balanço</td><td></td><td>Current liabilities</td><td></td></tr>
+                                    <tr><td>Balanço</td><td>2843</td><td>Cash pool liabilities, group companies</td><td></td></tr>
+                                    <tr><td>Balanço</td><td>2842</td><td>Overdraft facilities, external</td><td></td></tr>
+                                    <tr><td>Balanço</td><td>2841</td><td>Other current interest-bearing liabilities</td><td></td></tr>
+                                    <tr><td>Balanço</td><td>2440</td><td>Accounts payable, external</td><td></td></tr>
+                                    <tr><td>Balanço</td><td>2460</td><td>Accounts payable, group companies</td><td></td></tr>
+                                    <tr><td>Balanço</td><td>2510</td><td>Current tax liabilities</td><td></td></tr>
+                                    <tr><td>Balanço</td><td>2420</td><td>Advance payments from customers</td><td></td></tr>
+                                    <tr><td>Balanço</td><td>2700</td><td>Other current liabilities, employees</td><td></td></tr>
+                                    <tr><td>Balanço</td><td>2890</td><td>Other current liabilities, external</td><td></td></tr>
+                                    <tr><td>Balanço</td><td>2840</td><td>Loans</td><td></td></tr>
+                                    <tr><td>Balanço</td><td>2860</td><td>Other current liabilities, group companies</td><td></td></tr>
+                                    <tr><td>Balanço</td><td>2290</td><td>Other current provisions</td><td></td></tr>
+                                    <tr><td>Balanço</td><td>2902</td><td>Accrued expenses, employees & subcontractors</td><td></td></tr>
+                                    <tr><td>Balanço</td><td>2990</td><td>Accrued expenses and prepaid income</td><td></td></tr>
+                                    <tr class="bg-yellow-100 font-bold"><td>Balanço</td><td></td><td>Total current liabilities</td><td id="bal-total-current-liab"></td></tr>
+                                    <tr class="bg-green-100 font-bold"><td>Balanço</td><td></td><td>TOTAL SHAREHOLDERS' EQUITY AND LIABILITIES</td><td id="bal-total-equity-liab"></td></tr>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+        <div id="view-margin-analysis" class="hidden fade-in">
+            <div class="bg-white rounded-lg shadow p-6">
+                <h2 class="text-lg font-semibold mb-4 text-orange-700"><i class="fa-solid fa-percent mr-2"></i> Análise de Margem de Contribuição</h2>
+
+                <div class="mb-4 bg-gray-50 p-4 rounded border border-gray-200">
+                    <div class="flex flex-wrap gap-4 items-end">
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 mb-1">Ano</label>
+                            <select id="margin-year-select" onchange="app.renderMarginAnalysis()" class="filter-select font-bold text-blue-800"></select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 mb-1">Tipo de Período</label>
+                            <select id="margin-period-type" onchange="app.renderMarginAnalysis()" class="filter-select" title="Escolha entre YTD ou Mensal">
+                                <option value="ytd">YTD</option>
+                                <option value="mensal">Mensal</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 mb-1">Mês</label>
+                            <select id="margin-month-select" onchange="app.renderMarginAnalysis()" class="filter-select" title="Selecione o mês">
+                                <option value="1">Janeiro</option>
+                                <option value="2">Fevereiro</option>
+                                <option value="3">Março</option>
+                                <option value="4">Abril</option>
+                                <option value="5">Maio</option>
+                                <option value="6">Junho</option>
+                                <option value="7">Julho</option>
+                                <option value="8">Agosto</option>
+                                <option value="9">Setembro</option>
+                                <option value="10">Outubro</option>
+                                <option value="11">Novembro</option>
+                                <option value="12">Dezembro</option>
+                            </select>
+                        </div>
+                        
+                        <!-- Botão Rateio ADM (Margem) -->
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 mb-1">&nbsp;</label>
+                            <button onclick="app.toggleAdmAllocation()" id="btn-rateio-adm-margin" class="px-3 py-1 bg-purple-600 text-white text-xs font-bold rounded hover:bg-purple-700 shadow flex items-center gap-2" title="Ratear ADM por Heads">
+                                <i class="fa-solid fa-users-gear"></i> Ratear ADM
+                            </button>
+                        </div>
+                        <!-- Botão Detalhe YTD removido aba Margem -->
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 mb-1">Agrupar por</label>
+                            <select id="margin-group-by" onchange="app.renderMarginAnalysis()" class="filter-select font-bold text-orange-800">
+                                <option value="centroCusto">Centro de Custo</option>
+                                <option value="departamento">Departamento</option>
+                                <option value="cliente">Cliente</option>
+                                <option value="sbd">SB/D</option>
+                                <option value="projectType">Project Type</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 mb-1">&nbsp;</label>
+                            <label class="flex items-center gap-2 text-sm text-gray-700">
+                                <input type="checkbox" id="margin-compare-budget" onchange="app.renderMarginAnalysis()" />
+                                <span>Comparar com Budget</span>
+                            </label>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 mb-1">C. Custo (Filtro)</label>
+                            <input list="dl-cc-margin" id="margin-filter-cc" onchange="app.renderMarginAnalysis()" class="filter-select" placeholder="Ex: 1000, 2000...">
+                            <datalist id="dl-cc-margin"></datalist>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 mb-1">Depto (Filtro)</label>
+                            <input list="dl-dept-margin" id="margin-filter-dept" onchange="app.renderMarginAnalysis()" class="filter-select" placeholder="Ex: ADM, Comercial...">
+                            <datalist id="dl-dept-margin"></datalist>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 mb-1">Cliente (Filtro)</label>
+                            <input list="dl-client-margin" id="margin-filter-client" onchange="app.renderMarginAnalysis()" class="filter-select" placeholder="Ex: Google, Microsoft...">
+                            <datalist id="dl-client-margin"></datalist>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 mb-1">SB/D (Filtro)</label>
+                            <input list="dl-sbd-margin" id="margin-filter-sbd" onchange="app.renderMarginAnalysis()" class="filter-select" placeholder="Ex: SBD-A, SBD-B...">
+                            <datalist id="dl-sbd-margin"></datalist>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 mb-1">Project Type (Filtro)</label>
+                            <input list="dl-proj-margin" id="margin-filter-proj" onchange="app.renderMarginAnalysis()" class="filter-select" placeholder="Ex: Projeto A, Interno...">
+                            <datalist id="dl-proj-margin"></datalist>
+                        </div>
+                        <div class="ml-auto flex gap-2">
+                            <button onclick="app.clearMarginFilters()" class="px-3 py-2 bg-gray-400 text-white text-xs font-bold rounded hover:bg-gray-500 shadow flex items-center gap-2" title="Limpar Filtros">
+                                <i class="fa-solid fa-eraser"></i> Limpar Filtros
+                            </button>
+                            <button onclick="app.clearMarginExclusions()" class="px-3 py-2 bg-gray-500 text-white text-xs font-bold rounded hover:bg-gray-700 shadow flex items-center gap-2">
+                                <i class="fa-solid fa-undo"></i> Resetar Filtros Temp.
+                            </button>
+                        </div>
+                        <!-- Botão Debug Budget removido -->
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto border rounded-lg max-h-[65vh] overflow-y-auto">
+                    <table class="min-w-full divide-y divide-gray-200 text-sm">
+                        <thead class="bg-orange-600 text-white">
+                            <tr>
+                                <th class="px-4 py-2 text-left w-64 uppercase tracking-wider" id="margin-group-header">Centro de Custo</th>
+                                <th class="px-4 py-2 text-right uppercase tracking-wider">Receita Líquida</th>
+                                <th class="px-4 py-2 text-right uppercase tracking-wider">Custo Variável</th>
+                                <th class="px-4 py-2 text-right uppercase tracking-wider">Margem Contrib. (R$)</th>
+                                <th class="px-4 py-2 text-right uppercase tracking-wider bg-orange-700">Margem Contrib. (%)</th>
+                                <th class="px-4 py-2 text-center uppercase tracking-wider">Ação</th>
+                            </tr>
+                        </thead>
+                        <tbody id="margin-analysis-body" class="bg-white font-mono divide-y divide-gray-200">
+                            </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div id="view-export-ocra" class="hidden fade-in">
+            <div class="max-w-7xl mx-auto bg-white rounded-lg shadow p-6">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-lg font-semibold text-indigo-800"><i class="fa-solid fa-file-export mr-2"></i>Exportar Relatório OCRA</h2>
+                    <div class="flex gap-4 items-end">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Mês</label>
+                            <select id="ocra-export-month" class="mt-1 block w-32 rounded-md border-gray-300 shadow-sm border p-2">
+                                <option value="1">Janeiro</option><option value="2">Fevereiro</option>
+                                <option value="3">Março</option><option value="4">Abril</option>
+                                <option value="5">Maio</option><option value="6">Junho</option>
+                                <option value="7">Julho</option><option value="8">Agosto</option>
+                                <option value="9">Setembro</option><option value="10">Outubro</option>
+                                <option value="11">Novembro</option><option value="12">Dezembro</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Ano</label>
+                            <input type="number" id="ocra-export-year" class="mt-1 block w-24 rounded-md border-gray-300 shadow-sm border p-2" value="2024">
+                        </div>
+                        <button onclick="app.generateOcraReport()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded shadow transition">
+                            <i class="fa-solid fa-file-excel mr-2"></i>Gerar e Exportar Excel
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="bg-indigo-50 border-l-4 border-indigo-500 p-4 mb-6">
+                    <p class="text-sm text-indigo-700">
+                        Este relatório consolida os dados do <strong>DRE Departamento</strong> mapeando as informações com o <strong>Cadastro OCRA</strong>.
+                        <br>Certifique-se de que os departamentos estejam corretamente cadastrados na aba "Travamento e Config".
+                    </p>
+                </div>
+
+                <div class="overflow-x-auto border rounded-lg max-h-[600px]">
+                    <table class="min-w-full divide-y divide-gray-200 text-sm">
+                        <thead class="bg-gray-100 sticky top-0 z-10">
+                            <tr>
+                                <th class="px-3 py-2 text-left font-medium text-gray-500">Company</th>
+                                <th class="px-3 py-2 text-left font-medium text-gray-500">Departamento</th>
+                                <th class="px-3 py-2 text-left font-medium text-gray-500">Account</th>
+                                <th class="px-3 py-2 text-right font-medium text-gray-500">Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ocra-report-body" class="divide-y divide-gray-200 bg-white">
+                            <tr><td colspan="4" class="px-3 py-4 text-center text-gray-500">Clique em "Gerar e Exportar Excel" para processar os dados.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div id="view-locks" class="hidden fade-in">
+            <div class="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h2 class="text-lg font-semibold mb-4 text-gray-800"><i class="fa-solid fa-lock text-red-600 mr-2"></i>Bloquear Período</h2>
+                    <div class="flex gap-4 items-end">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Mês</label>
+                            <select id="lock-month" class="mt-1 block w-24 rounded-md border-gray-300 shadow-sm border p-2">
+                                <option value="1">Jan</option><option value="2">Fev</option><option value="3">Mar</option>
+                                <option value="4">Abr</option><option value="5">Mai</option><option value="6">Jun</option>
+                                <option value="7">Jul</option><option value="8">Ago</option><option value="9">Set</option>
+                                <option value="10">Out</option><option value="11">Nov</option><option value="12">Dez</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Ano</label>
+                            <input type="number" id="lock-year" value="2024" class="mt-1 block w-24 rounded-md border-gray-300 shadow-sm border p-2">
+                        </div>
+                        <button onclick="app.addLock()" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">
+                            Travar
+                        </button>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h2 class="text-lg font-semibold mb-4 text-gray-800">Competências Travadas</h2>
+                    <div class="overflow-y-auto max-h-40 border rounded bg-gray-50">
+                        <ul id="lock-list" class="divide-y divide-gray-200">
+                            </ul>
+                    </div>
+                    <p id="no-locks-msg" class="text-gray-500 text-sm mt-2 hidden text-center">Nenhum período travado.</p>
+                </div>
+
+                <div class="bg-white rounded-lg shadow p-6 border-t-4 border-blue-500">
+                    <h2 class="text-lg font-semibold mb-2 text-blue-800"><i class="fa-solid fa-file-invoice-dollar text-blue-600 mr-2"></i>Exceções de Impostos</h2>
+                    <p class="text-xs text-gray-500 mb-4">Centros de Custo cadastrados aqui NÃO terão o cálculo automático de impostos (Conta 3204) gerado na importação de receita.</p>
+                    <div class="flex gap-2 items-end">
+                        <div class="flex-grow">
+                            <label class="block text-sm font-medium text-gray-700">Centro de Custo (Cód.)</label>
+                            <input type="text" id="exempt-cc-input" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2" placeholder="Ex: 2050">
+                        </div>
+                        <button onclick="app.addExemptCC()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 mb-[1px]">
+                            Adicionar
+                        </button>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-lg shadow p-6 border-t-4 border-blue-500">
+                    <h2 class="text-lg font-semibold mb-4 text-blue-800">Centros de Custo Isentos</h2>
+                    <div class="overflow-y-auto max-h-40 border rounded bg-gray-50">
+                        <ul id="exempt-list" class="divide-y divide-gray-200">
+                            </ul>
+                    </div>
+                    <p id="no-exempt-msg" class="text-gray-500 text-sm mt-2 hidden text-center">Nenhuma exceção cadastrada.</p>
+                </div>
+
+                <div class="bg-white rounded-lg shadow p-6 border-t-4 border-green-500 col-span-1 md:col-span-2">
+                    <h2 class="text-lg font-semibold mb-4 text-green-800"><i class="fa-solid fa-building text-green-600 mr-2"></i>Cadastro OCRA</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Num. Empresa</label>
+                            <input type="text" id="ocra-company-num" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2" placeholder="Ex: 001">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Num. Departamento</label>
+                            <input type="text" id="ocra-dept-num" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2" placeholder="Ex: 10">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Departamento</label>
+                            <input type="text" id="ocra-department" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2" placeholder="Ex: Financeiro">
+                        </div>
+                        <div class="col-span-1 md:col-span-3 mt-2">
+                            <button onclick="app.addOcraConfig()" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 w-full md:w-auto">
+                                <i class="fa-solid fa-plus mr-2"></i>Adicionar
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="mt-6">
+                        <h3 class="text-md font-semibold mb-2 text-gray-700">Cadastros Salvos</h3>
+                        <div class="overflow-x-auto border rounded bg-gray-50 max-h-60">
+                            <table class="min-w-full divide-y divide-gray-200 text-sm">
+                                <thead class="bg-gray-100 sticky top-0">
+                                    <tr>
+                                        <th class="px-3 py-2 text-left font-medium text-gray-500">Empresa</th>
+                                        <th class="px-3 py-2 text-left font-medium text-gray-500">Num. Depto</th>
+                                        <th class="px-3 py-2 text-left font-medium text-gray-500">Departamento</th>
+                                        <th class="px-3 py-2 text-center font-medium text-gray-500">Ação</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="ocra-list-body" class="divide-y divide-gray-200 bg-white">
+                                    <!-- Lista gerada via JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                        <p id="ocra-empty-msg" class="text-gray-500 text-sm mt-2 hidden text-center">Nenhum cadastro encontrado.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <div id="toast" class="fixed bottom-4 right-4 bg-gray-800 text-white px-6 py-3 rounded shadow-lg transform translate-y-20 transition-transform duration-300 z-50">
+        <span id="toast-msg">Mensagem</span>
+    </div>
+
+    <script src="js/template-aba.js"></script>
+    <script src="js/aba-dre.js"></script>
+    <script src="js/aba-dre-acumulado.js"></script>
+    <script src="js/aba-dre-budget-2.js"></script>
+    <script src="js/aba-dre-departamento.js"></script>
+    <script src="js/aba-dre-suecia.js"></script>
+    <script src="js/aba-margin-analysis.js"></script>
+    <script src="js/aba-mgmt-fee.js"></script>
+    <script src="js/aba-centros-custo.js"></script>
+    <script src="js/expose-diagnose-centro.js"></script>
+    <script src="js/diagnose-centro-standalone.js"></script>
+    <script src="js/script.js"></script>
+    <script>
+        try {
+            console.debug('startup: AbaDreAcumulado=', !!window.AbaDreAcumulado, 'AbaDre=', !!window.AbaDre, 'app=', !!window.app);
+        } catch (e) { console.error('startup debug error', e); }
+    </script>
+</body>
+</html>
