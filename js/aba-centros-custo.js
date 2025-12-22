@@ -83,7 +83,7 @@ AbaCentrosCusto.renderList = function(app) {
   const tbody = document.getElementById('centros-custo-body');
   if (!tbody) return;
   tbody.innerHTML = '';
-  const list = (app && app.centrosCusto) ? app.centrosCusto : [];
+  const list = (window.DataAPI && typeof DataAPI.getCentrosCusto === 'function') ? DataAPI.getCentrosCusto(app) : ((app && app.centrosCusto) ? app.centrosCusto : []);
   if (list.length === 0) {
     const tr = document.createElement('tr');
     tr.innerHTML = `<td class="px-3 py-2 text-gray-500" colspan="7">Nenhum centro cadastrado.</td>`;
@@ -120,18 +120,28 @@ AbaCentrosCusto.addCentroCusto = function(app, item) {
   if (!app) return;
   const _item = Object.assign({ id: Date.now() + Math.random(), projectId: '' }, item || {});
   if (!String(_item.projectId || '').trim()) return;
-  app.centrosCusto = app.centrosCusto || [];
-  app.centrosCusto.push(_item);
-  // Persist and refresh mappings
-  if (app.saveToStorage) app.saveToStorage();
+  const list = (window.DataAPI && typeof DataAPI.getCentrosCusto === 'function') ? DataAPI.getCentrosCusto(app).slice() : (app.centrosCusto || []).slice();
+  list.push(_item);
+  if (window.DataAPI && typeof DataAPI.setCentrosCusto === 'function') {
+    DataAPI.setCentrosCusto(app, list);
+  } else {
+    app.centrosCusto = list;
+    if (app.saveToStorage) app.saveToStorage();
+  }
   AbaCentrosCusto._applyMappingToData(app);
   AbaCentrosCusto.renderList(app);
 };
 
 AbaCentrosCusto.removeCentroCusto = function(app, id) {
   if (!app) return;
-  app.centrosCusto = (app.centrosCusto || []).filter(c => c.id !== id);
-  if (app.saveToStorage) app.saveToStorage();
+  const list = (window.DataAPI && typeof DataAPI.getCentrosCusto === 'function') ? DataAPI.getCentrosCusto(app).slice() : (app.centrosCusto || []).slice();
+  const filtered = list.filter(c => c.id !== id);
+  if (window.DataAPI && typeof DataAPI.setCentrosCusto === 'function') {
+    DataAPI.setCentrosCusto(app, filtered);
+  } else {
+    app.centrosCusto = filtered;
+    if (app.saveToStorage) app.saveToStorage();
+  }
   AbaCentrosCusto._applyMappingToData(app);
   AbaCentrosCusto.renderList(app);
 };
@@ -166,8 +176,12 @@ AbaCentrosCusto.importCentrosCusto = function(app, rows) {
     if (app.showToast) app.showToast('Nenhum Centro de Custo válido encontrado no arquivo.', true);
     return;
   }
-  app.centrosCusto = list;
-  if (app.saveToStorage) app.saveToStorage();
+  if (window.DataAPI && typeof DataAPI.importCentrosCusto === 'function') {
+    DataAPI.importCentrosCusto(app, rows);
+  } else {
+    app.centrosCusto = list;
+    if (app.saveToStorage) app.saveToStorage();
+  }
   // After import, propagate mappings to existing data/keyRatios
   AbaCentrosCusto._applyMappingToData(app);
   AbaCentrosCusto.renderList(app);
@@ -200,15 +214,23 @@ AbaCentrosCusto.handleFileInput = function(app, input) {
 
 AbaCentrosCusto.saveCentrosCusto = function(app) {
   if (!app) return;
-  if (app.saveToStorage) app.saveToStorage();
+  if (window.DataAPI && typeof DataAPI.setCentrosCusto === 'function') {
+    DataAPI.setCentrosCusto(app, app.centrosCusto || []);
+  } else if (app.saveToStorage) {
+    app.saveToStorage();
+  }
   if (app.showToast) app.showToast('Centros de Custo salvos.');
 };
 
 AbaCentrosCusto.clearCentrosCusto = function(app) {
   if (!app) return;
   if (!confirm('Limpar todos os Centros de Custo?')) return;
-  app.centrosCusto = [];
-  if (app.saveToStorage) app.saveToStorage();
+  if (window.DataAPI && typeof DataAPI.setCentrosCusto === 'function') {
+    DataAPI.setCentrosCusto(app, []);
+  } else {
+    app.centrosCusto = [];
+    if (app.saveToStorage) app.saveToStorage();
+  }
   // Removing mappings: clear related fields? We'll only re-apply (which will leave existing cliente/departamento intact), then refresh filters.
   AbaCentrosCusto._applyMappingToData(app);
   AbaCentrosCusto.renderList(app);

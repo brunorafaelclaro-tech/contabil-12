@@ -158,6 +158,51 @@
             if (render && fn) { try { fn(); } catch(e){ console.warn('DataAPI.importKeyRatios: render failed', e); } }
         }
 
+        // --- Centros de Custo helpers ---
+        ,getCentrosCusto(app) {
+            return (app && Array.isArray(app.centrosCusto)) ? app.centrosCusto : [];
+        }
+
+        ,setCentrosCusto(app, list, { persist = true, render = true } = {}) {
+            if (!app) return;
+            app.centrosCusto = Array.isArray(list) ? list : [];
+            if (persist && typeof app.saveToStorage === 'function') {
+                try { app.saveToStorage(); } catch(e) { console.warn('DataAPI.setCentrosCusto: saveToStorage failed', e); }
+            }
+            if (render && typeof app.setupDynamicFilters === 'function') {
+                try { app.setupDynamicFilters(); } catch(e) { /* ignore */ }
+            }
+            if (render && typeof app.populateFilters === 'function') {
+                try { app.populateFilters(); } catch(e) { /* ignore */ }
+            }
+        }
+
+        ,importCentrosCusto(app, rows, { persist = true, render = true } = {}) {
+            if (!app || !Array.isArray(rows)) return;
+            if (rows.length <= 1) return;
+            const list = [];
+            for (let i = 1; i < rows.length; i++) {
+                const row = rows[i]; if (!row) continue;
+                const projectIdRaw = row[0];
+                const projectId = String(projectIdRaw === undefined || projectIdRaw === null ? '' : projectIdRaw).trim();
+                if (!projectId) continue;
+                const item = {
+                    id: Date.now() + Math.random(),
+                    projectId,
+                    descricao: String(row[1] || '').trim(),
+                    cliente: String(row[2] || '').trim(),
+                    departamento: String(row[3] || '').trim(),
+                    sbd: String(row[4] || '').trim(),
+                    projectType: String(row[5] || '').trim()
+                };
+                list.push(item);
+            }
+            app.centrosCusto = list;
+            if (persist && typeof app.saveToStorage === 'function') { try { app.saveToStorage(); } catch(e){ console.warn('DataAPI.importCentrosCusto: saveToStorage failed', e); } }
+            if (render && typeof app.populateFilters === 'function') { try { app.populateFilters(); } catch(e){} }
+            if (render && typeof app.setupDynamicFilters === 'function') { try { app.setupDynamicFilters(); } catch(e){} }
+        }
+
         // --- Plano de Contas helper ---
         setPlanoContas(app, list, { persist = true, render = true } = {}) {
             if (!app) return;
