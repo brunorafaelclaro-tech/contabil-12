@@ -110,9 +110,7 @@
                             <i class="fa-solid fa-percent text-orange-600"></i> Margem
                         </button>
 
-                        <button onclick="app.switchTab('export-ocra')" id="tab-export-ocra" class="tab-inactive py-2 px-2 inline-flex items-center gap-1 text-xs font-semibold whitespace-nowrap hover:text-blue-600">
-                            <i class="fa-solid fa-file-export text-indigo-600"></i> OCRA
-                        </button>
+                        <!-- OCRA report removed per user request -->
 
                         <button onclick="app.switchTab('locks')" id="tab-locks" class="tab-inactive py-2 px-2 inline-flex items-center gap-1 text-xs font-semibold whitespace-nowrap hover:text-blue-600">
                             <i class="fa-solid fa-lock"></i> Config
@@ -124,6 +122,7 @@
                 </div>
                 <div class="flex items-center space-x-4">
                     <button onclick="app.exportCurrentData()" class="text-sm text-gray-500 hover:text-blue-600" title="Exportar Dados Atual"><i class="fa-solid fa-file-excel"></i> Exportar</button>
+                    <!-- Global saved imports dropdown removed per request -->
                     <button onclick="app.backupData()" class="text-sm text-gray-500 hover:text-blue-600" title="Baixar Backup JSON"><i class="fa-solid fa-download"></i> Backup</button>
                     <button onclick="document.getElementById('fileBackup').click()" class="text-sm text-gray-500 hover:text-green-600" title="Restaurar Backup"><i class="fa-solid fa-upload"></i> Restaurar</button>
                     <input type="file" id="fileBackup" class="hidden" accept=".json" onchange="app.restoreData(this)">
@@ -154,13 +153,37 @@
                     <button onclick="document.getElementById('fileInput').click()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition">
                         Selecionar Arquivo
                     </button>
-                    <p id="fileName" class="mt-2 text-sm text-gray-500 font-medium"></p>
+                    <div class="mt-2 text-sm text-gray-500 font-medium">
+                        <span id="fileName"></span>
+                        <div id="saved-imports-inline" class="mt-2 space-y-1"></div>
+                    </div>
+                    <p id="import-column-guidance" class="text-sm text-gray-700 mt-3"></p>
                 </div>
 
                 <div id="preview-section" class="hidden mt-6">
                     <div class="flex justify-between items-center mb-2">
                         <h3 class="font-medium text-gray-700">Pré-visualização (Primeiras 5 linhas válidas)</h3>
                         <span id="preview-filter-hint" class="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded"></span>
+                    </div>
+                    
+                    <!-- Saved imports / meses importados -->
+                    <div id="saved-imports-section" class="mt-6 hidden">
+                        <h3 class="font-medium text-gray-700 mb-2">Arquivos importados</h3>
+                        <div id="saved-imports-summary" class="text-sm text-gray-600 mb-2"></div>
+                        <div class="overflow-x-auto border rounded-lg">
+                            <table class="min-w-full divide-y divide-gray-200 text-sm">
+                                <thead class="bg-gray-100">
+                                    <tr>
+                                        <th class="px-3 py-2 text-left font-medium text-gray-500">Arquivo</th>
+                                        <th class="px-3 py-2 text-left font-medium text-gray-500">Tipo</th>
+                                        <th class="px-3 py-2 text-left font-medium text-gray-500">Mês/Ano (inferido)</th>
+                                        <th class="px-3 py-2 text-left font-medium text-gray-500">Importado em</th>
+                                        <th class="px-3 py-2 text-right font-medium text-gray-500">Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="saved-imports-body" class="bg-white divide-y divide-gray-200 text-xs"></tbody>
+                            </table>
+                        </div>
                     </div>
                     <div class="overflow-x-auto border rounded-lg">
                         <table class="min-w-full divide-y divide-gray-200 text-sm">
@@ -208,36 +231,7 @@
                     </div>
                 </div>
 
-                <div id="balance-list-section" class="hidden mt-8">
-                    <div class="flex justify-between items-center mb-4">
-                        <h2 class="text-lg font-semibold">Balanço e Pos EBIT Importados</h2>
-                        <div class="flex gap-2">
-                            <button onclick="app.exportBalanceData()" class="px-3 py-2 bg-green-600 text-white text-xs font-bold rounded hover:bg-green-700 shadow flex items-center gap-2">
-                                <i class="fa-solid fa-file-excel"></i> Exportar Excel
-                            </button>
-                            <button onclick="app.clearBalanceData()" class="text-red-600 hover:text-red-800 text-sm font-bold">
-                                <i class="fa-solid fa-trash"></i> Limpar Tudo
-                            </button>
-                        </div>
-                    </div>
-                    <div class="overflow-x-auto border rounded-lg max-h-[600px]">
-                        <table class="min-w-full divide-y divide-gray-200 text-xs">
-                            <thead class="bg-gray-100 sticky top-0 z-10">
-                                <tr>
-                                    <th class="px-2 py-2 text-left font-medium text-gray-500">Conta Red.</th>
-                                    <th class="px-2 py-2 text-left font-medium text-gray-500">Conta Grande</th>
-                                    <th class="px-2 py-2 text-left font-medium text-gray-500">Descrição</th>
-                                    <th class="px-2 py-2 text-left font-medium text-gray-500">Conta OCRA</th>
-                                    <th class="px-2 py-2 text-right font-medium text-gray-500">Saldo Final</th>
-                                    <th class="px-2 py-2 text-left font-medium text-gray-500">Mês/Ano</th>
-                                </tr>
-                            </thead>
-                            <tbody id="balance-list-body" class="bg-white divide-y divide-gray-200 font-mono">
-                                <!-- Data will be rendered here -->
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+                <!-- Relatório Balanço e Pos EBIT removido conforme solicitação do usuário -->
             </div>
         </div>
 
@@ -1202,56 +1196,7 @@
             </div>
         </div>
 
-        <div id="view-export-ocra" class="hidden fade-in">
-            <div class="max-w-7xl mx-auto bg-white rounded-lg shadow p-6">
-                <div class="flex justify-between items-center mb-6">
-                    <h2 class="text-lg font-semibold text-indigo-800"><i class="fa-solid fa-file-export mr-2"></i>Exportar Relatório OCRA</h2>
-                    <div class="flex gap-4 items-end">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700">Mês</label>
-                            <select id="ocra-export-month" class="mt-1 block w-32 rounded-md border-gray-300 shadow-sm border p-2">
-                                <option value="1">Janeiro</option><option value="2">Fevereiro</option>
-                                <option value="3">Março</option><option value="4">Abril</option>
-                                <option value="5">Maio</option><option value="6">Junho</option>
-                                <option value="7">Julho</option><option value="8">Agosto</option>
-                                <option value="9">Setembro</option><option value="10">Outubro</option>
-                                <option value="11">Novembro</option><option value="12">Dezembro</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700">Ano</label>
-                            <input type="number" id="ocra-export-year" class="mt-1 block w-24 rounded-md border-gray-300 shadow-sm border p-2" value="2024">
-                        </div>
-                        <button onclick="app.generateOcraReport()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded shadow transition">
-                            <i class="fa-solid fa-file-excel mr-2"></i>Gerar e Exportar Excel
-                        </button>
-                    </div>
-                </div>
-                
-                <div class="bg-indigo-50 border-l-4 border-indigo-500 p-4 mb-6">
-                    <p class="text-sm text-indigo-700">
-                        Este relatório consolida os dados do <strong>DRE Departamento</strong> mapeando as informações com o <strong>Cadastro OCRA</strong>.
-                        <br>Certifique-se de que os departamentos estejam corretamente cadastrados na aba "Travamento e Config".
-                    </p>
-                </div>
-
-                <div class="overflow-x-auto border rounded-lg max-h-[600px]">
-                    <table class="min-w-full divide-y divide-gray-200 text-sm">
-                        <thead class="bg-gray-100 sticky top-0 z-10">
-                            <tr>
-                                <th class="px-3 py-2 text-left font-medium text-gray-500">Company</th>
-                                <th class="px-3 py-2 text-left font-medium text-gray-500">Departamento</th>
-                                <th class="px-3 py-2 text-left font-medium text-gray-500">Account</th>
-                                <th class="px-3 py-2 text-right font-medium text-gray-500">Amount</th>
-                            </tr>
-                        </thead>
-                        <tbody id="ocra-report-body" class="divide-y divide-gray-200 bg-white">
-                            <tr><td colspan="4" class="px-3 py-4 text-center text-gray-500">Clique em "Gerar e Exportar Excel" para processar os dados.</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
+        <!-- OCRA export view removed per user request -->
 
         <div id="view-locks" class="hidden fade-in">
             <div class="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1360,6 +1305,7 @@
         <span id="toast-msg">Mensagem</span>
     </div>
 
+    <script src="js/app-utils.js"></script>
     <script src="js/template-aba.js"></script>
     <script src="js/aba-dre.js"></script>
     <script src="js/aba-dre-acumulado.js"></script>
@@ -1369,6 +1315,14 @@
     <script src="js/aba-margin-analysis.js"></script>
     <script src="js/aba-mgmt-fee.js"></script>
     <script src="js/aba-centros-custo.js"></script>
+    <script src="js/aba-config.js"></script>
+    <script src="js/data-api.js"></script>
+    <script src="js/aba-import-receita.js"></script>
+    <script src="js/aba-import-despesa.js"></script>
+    <script src="js/aba-import-budget.js"></script>
+    <script src="js/aba-import-keyratios.js"></script>
+    <script src="js/aba-import-plano-contas.js"></script>
+    <script src="js/aba-import-balance.js"></script>
     <script src="js/expose-diagnose-centro.js"></script>
     <script src="js/diagnose-centro-standalone.js"></script>
     <script src="js/script.js"></script>

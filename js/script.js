@@ -11,24 +11,9 @@ const LEGACY_DRE_DISABLED = true;
 
 // Helper: converte abreviações de mês (pt) em número (Jan->1, Fev->2, ...)
 function parseMonthString(raw) {
-    if (raw === undefined || raw === null) return null;
-    const s = String(raw).toLowerCase().replace(/\./g, '').trim();
-    if (!s) return null;
-    if (/^jan/.test(s)) return 1;
-    if (/^fev/.test(s) || /^feb/.test(s)) return 2;
-    if (/^mar/.test(s)) return 3;
-    if (/^abr/.test(s)) return 4;
-    if (/^mai/.test(s) || /^may/.test(s)) return 5;
-    if (/^jun/.test(s)) return 6;
-    if (/^jul/.test(s)) return 7;
-    if (/^ago/.test(s) || /^aug/.test(s)) return 8;
-    if (/^set/.test(s) || /^sep/.test(s)) return 9;
-    if (/^out/.test(s) || /^oct/.test(s)) return 10;
-    if (/^nov/.test(s)) return 11;
-    if (/^dez/.test(s) || /^dec/.test(s)) return 12;
-    // Se for número escrito como string, tentar converter
-    const asNum = Number(s);
-    if (!isNaN(asNum) && asNum >= 1 && asNum <= 12) return asNum;
+    if (window.AppUtils && typeof window.AppUtils.parseMonthString === 'function') {
+        return window.AppUtils.parseMonthString(raw);
+    }
     return null;
 }
 
@@ -416,10 +401,105 @@ const app = {
             }
         };
 
+        // (previously attempted to persist savedImportedFiles here; actual persistence
+        // happens in saveToStorage/loadFromStorage and via readerDataUrl handler)
+
         this.switchTab('import-key-ratios'); 
         document.getElementById('lock-year').value = new Date().getFullYear();
         document.getElementById('mgmt-year').value = new Date().getFullYear();
         document.getElementById('dre-acc-month').value = new Date().getMonth() + 1; 
+    },
+
+    downloadSavedImport(idOrIndex) {
+        try {
+            if (!this.savedImportedFiles || !this.savedImportedFiles.length) {
+                this.showToast('Nenhum arquivo salvo para download.', true);
+                return;
+            }
+
+            // If no arg passed, choose the most recent
+            let item = null;
+            if (typeof idOrIndex === 'undefined' || idOrIndex === null) {
+                item = this.savedImportedFiles[this.savedImportedFiles.length - 1];
+            } else if (typeof idOrIndex === 'number') {
+                item = this.savedImportedFiles[idOrIndex];
+            } else {
+                item = this.savedImportedFiles.find(f => f.id === idOrIndex) || null;
+            }
+
+            if (!item) {
+                this.showToast('Arquivo não encontrado.', true);
+                return;
+            }
+
+            const base64 = item.base64;
+            if (!base64) {
+                this.showToast('Arquivo salvo inválido (sem conteúdo).', true);
+                return;
+            }
+
+            const byteChars = atob(base64);
+            const byteNumbers = new Array(byteChars.length);
+            for (let i = 0; i < byteChars.length; i++) {
+                byteNumbers[i] = byteChars.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            const blob = new Blob([byteArray], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = item.fileName || 'imported.xlsx';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+        } catch (err) {
+            console.error('downloadSavedImport error', err);
+            this.showToast('Erro ao gerar download do arquivo.', true);
+        }
+    },
+
+    inferMonthYearFromFilename(fileName) {
+        if (window.AppUtils && typeof window.AppUtils.inferMonthYearFromFilename === 'function') {
+            try { return window.AppUtils.inferMonthYearFromFilename(fileName); } catch(e) { console.warn('inferMonthYearFromFilename AppUtils failed', e); }
+        }
+        if (!fileName || typeof fileName !== 'string') return null;
+        // fallback simple heuristic
+        const s = fileName.replace(/[_\-\.]/g, ' ').toLowerCase();
+        const yearMatch = s.match(/(20\d{2}|19\d{2})/);
+        const year = yearMatch ? parseInt(yearMatch[0]) : null;
+        const mmYYYY = s.match(/(0?[1-9]|1[0-2])[\s_\-\.\/]*(20\d{2})/);
+        if (mmYYYY) return { month: parseInt(mmYYYY[1]), year: parseInt(mmYYYY[2]), label: (parseInt(mmYYYY[1]) + '/' + mmYYYY[2]) };
+        return year ? { month: null, year: year, label: (year) } : null;
+    },
+
+    renderSavedImports() {
+        // Ocultar completamente a seção de imports salvos (sem exibir metadados)
+        const section = document.getElementById('saved-imports-section');
+        const summary = document.getElementById('saved-imports-summary');
+        if (section) section.classList.add('hidden');
+        if (summary) summary.innerText = '';
+        return;
+    },
+
+    renderSavedImportsInline() {
+        // Limpar qualquer exibição inline de imports salvos (não mostrar nome/label)
+        const container = document.getElementById('saved-imports-inline');
+        const fileNameEl = document.getElementById('fileName');
+        if (container) container.innerHTML = '';
+        if (fileNameEl) fileNameEl.innerText = '';
+        return;
+    },
+
+    deleteSavedImport(id) {
+        if (!id) return;
+        if (!confirm('Excluir este arquivo salvo?')) return;
+        this.savedImportedFiles = (this.savedImportedFiles || []).filter(f => f.id !== id);
+        try { if (this.saveToStorage) this.saveToStorage(); } catch (e) { console.warn('saveToStorage failed after deleteSavedImport', e); }
+        try { this.renderSavedImports(); } catch (e) {}
+
+        try { this.renderSavedImportsInline(); } catch (e) {}
+        try { this.renderSavedImportsGlobal(); } catch (e) {}
     },
 
     // Diagnostic helper: show details of ADM allocation for current filters
@@ -648,54 +728,27 @@ const app = {
     },
 
     parseLocaleNumber(value) {
-        if (value === undefined || value === null) return 0;
-        if (typeof value === 'number') return value;
-        let s = String(value).trim();
-        if (!s) return 0;
-        // Remove spaces
-        s = s.replace(/\s+/g, '');
-        // If contains both '.' and ',', determine which one is the decimal separator
-        if (s.indexOf(',') > -1 && s.indexOf('.') > -1) {
-            const lastDot = s.lastIndexOf('.')
-            const lastComma = s.lastIndexOf(',')
-            if (lastDot > lastComma) {
-                // dot appears after comma -> dot is decimal separator, remove commas as thousands
-                s = s.replace(/,/g, '');
-            } else {
-                // comma appears after dot -> comma is decimal separator, remove dots and replace comma with dot
-                s = s.replace(/\./g, '').replace(/,/g, '.');
-            }
-        } else if (s.indexOf(',') > -1) {
-            // Only comma present: treat as decimal separator
-            s = s.replace(',', '.');
-        } else if (s.indexOf('.') > -1) {
-            // Only dot present (no comma): decide if dot is decimal or thousands separator.
-            // Heuristic: if the last group after the dot has 1 or 2 digits, it's likely a decimal separator (e.g. '300.61').
-            // Otherwise treat dots as thousands separators (e.g. '159.259' -> '159259').
-            const parts = s.split('.');
-            const last = parts[parts.length - 1] || '';
-            if (last.length > 0 && last.length <= 2) {
-                // treat dot as decimal separator (keep it)
-                // nothing to change
-            } else {
-                s = s.replace(/\./g, '');
-            }
+        if (window.AppUtils && typeof window.AppUtils.parseLocaleNumber === 'function') {
+            return window.AppUtils.parseLocaleNumber(value);
         }
-        // Remove any non-digit except dot and minus
-        s = s.replace(/[^0-9\.-]/g, '');
-        const n = parseFloat(s);
-        return isNaN(n) ? 0 : n;
+        return 0;
     },
 
     normalizeAccountString(s) {
+        if (window.AppUtils && typeof window.AppUtils.normalizeAccountString === 'function') {
+            return window.AppUtils.normalizeAccountString(s);
+        }
         if (s === undefined || s === null) return '';
         return String(s).toUpperCase().replace(/[^A-Z0-9]/g, '');
     },
 
     normalizeAccountDigits(s) {
+        if (window.AppUtils && typeof window.AppUtils.normalizeAccountDigits === 'function') {
+            return window.AppUtils.normalizeAccountDigits(s);
+        }
         if (s === undefined || s === null) return '';
         const digits = String(s).replace(/\D/g, '');
-        return digits.replace(/^0+/, '') || digits; // remove leading zeros
+        return digits.replace(/^0+/, '') || digits;
     },
 
     normalizePeriod(mes, ano) {
@@ -839,15 +892,10 @@ const app = {
             this.setImportContext(map[raw] || 'Receita');
             const pcList = document.getElementById('plano-contas-list-section');
             if (pcList) pcList.classList.add('hidden');
-            const balList = document.getElementById('balance-list-section');
-            if (balList) balList.classList.add('hidden');
 
             if (tabName === 'import-plano-contas') {
                 this.renderPlanoContas();
                 if (pcList) pcList.classList.remove('hidden');
-            } else if (tabName === 'import-balance') {
-                this.renderBalanceData();
-                if (balList) balList.classList.remove('hidden');
             }
         }
         else if (tabName === 'mgmt-fee') this.renderMgmtFeesList();
@@ -892,26 +940,57 @@ const app = {
             badge.innerText = "RECEITA (6 ou 18 colunas)";
             desc.innerText = "Selecione o arquivo mensal de Receita (.xlsx ou .xls). Aceita formato compacto (6 colunas: Conta, Descrição, Valor, Centro (Project ID), Mês, Ano) ou formato antigo (>=18 colunas, filtro Coluna 6 == 36).";
             document.getElementById('preview-filter-hint').innerText = "Filtro (antigo): Coluna 6 == 36";
+            const guidanceEl = document.getElementById('import-column-guidance');
+            if (guidanceEl) guidanceEl.innerHTML = "<strong>Colunas esperadas (compacto):</strong> 1-Conta; 2-Descrição; 3-Valor; 4-Centro (Project ID); 5-Mês; 6-Ano. <br><strong>Formato antigo:</strong> arquivos com muitas colunas (>=18) onde o filtro é Coluna 6 == 36. Use vírgula para decimais.";
         } else if (type === 'Despesa') {
             badge.className = "mb-4 inline-block px-3 py-1 rounded-full text-sm font-bold bg-red-100 text-red-800";
             badge.innerText = "DESPESA (6 ou 18 colunas)";
             desc.innerText = "Selecione o arquivo mensal de Despesa (.xlsx ou .xls). Aceita formato compacto (6 colunas: Conta, Descrição, Valor, Centro (Project ID), Mês, Ano) ou formato antigo (>=18 colunas, filtro Coluna 6 == 36).";
             document.getElementById('preview-filter-hint').innerText = "Filtro (antigo): Coluna 6 == 36";
+            const guidanceEl = document.getElementById('import-column-guidance');
+            if (guidanceEl) guidanceEl.innerHTML = "<strong>Colunas esperadas (compacto):</strong> 1-Conta; 2-Descrição; 3-Valor; 4-Centro (Project ID); 5-Mês; 6-Ano. <br><strong>Formato antigo:</strong> arquivos com muitas colunas (>=18) onde o filtro é Coluna 6 == 36. Use vírgula para decimais.";
         } else if (type === 'Budget') {
             badge.className = "mb-4 inline-block px-3 py-1 rounded-full text-sm font-bold bg-indigo-100 text-indigo-800";
             badge.innerText = "BUDGET (10 Colunas)";
             desc.innerText = "Selecione o arquivo de Budget (.xlsx ou .xls). Layout: 1-Conta, 2-Descrição, 3-Valor, 4-C. Custo, 5-Depto, 6-Cliente, 7-SB/D, 8-Project Type, 9-Mês, 10-Ano.";
             document.getElementById('preview-filter-hint').innerText = "";
+            const guidanceEl = document.getElementById('import-column-guidance');
+            if (guidanceEl) guidanceEl.innerHTML = "<strong>Layout esperado (10 colunas):</strong> 1-Conta; 2-Descrição; 3-Valor; 4-C. Custo; 5-Depto; 6-Cliente; 7-SB/D; 8-Project Type; 9-Mês; 10-Ano.";
         } else if (type === 'KeyRatios') {
             badge.className = "mb-4 inline-block px-3 py-1 rounded-full text-sm font-bold bg-blue-100 text-blue-800";
             badge.innerText = "KEY RATIOS";
             desc.innerText = "Selecione o arquivo de Key Ratios (.xlsx).";
             document.getElementById('preview-filter-hint').innerText = "";
+            const guidanceEl = document.getElementById('import-column-guidance');
+            if (guidanceEl) guidanceEl.innerHTML = "<strong>Key Ratios:</strong> arquivo deve conter colunas de departamento, mês, ano e métricas (heads, etc.). Siga o modelo usado anteriormente.";
+        } else if (type === 'Balance') {
+            badge.className = "mb-4 inline-block px-3 py-1 rounded-full text-sm font-bold bg-teal-100 text-teal-800";
+            badge.innerText = "BALANÇO / POS EBIT (7 colunas)";
+            desc.innerText = "Selecione o arquivo de Balanço / Pos EBIT (.xlsx ou .xls).";
+            document.getElementById('preview-filter-hint').innerText = "";
+            const guidanceElBalance = document.getElementById('import-column-guidance');
+            if (guidanceElBalance) guidanceElBalance.innerHTML =
+                'Arquivo com 7 colunas,<br>' +
+                'Coluna A - Conta reduzida<br>' +
+                'Coluna B - Conta Grande<br>' +
+                'Coluna C- Descrição<br>' +
+                'Coluna D - Saldo final<br>' +
+                'Coluna E - Conta Ocra<br>' +
+                'Coluna F - mês<br>' +
+                'Coluna G - Ano';
         } else {
             badge.className = "mb-4 inline-block px-3 py-1 rounded-full text-sm font-bold bg-gray-100 text-gray-800";
             badge.innerText = type;
             desc.innerText = "Selecione o arquivo apropriado.";
             document.getElementById('preview-filter-hint').innerText = "";
+            const guidanceEl = document.getElementById('import-column-guidance');
+            if (type === 'PlanoContas') {
+                if (guidanceEl) guidanceEl.innerHTML = "<strong>Plano de Contas:</strong> colunas esperadas: Conta Reduzida, Conta OCRA, Descrição (ou similar). Outros campos opcionais serão ignorados.";
+            } else if (type === 'Balance') {
+                if (guidanceEl) guidanceEl.innerHTML = "<strong>Balanço/Pos EBIT:</strong> o preview mostrará as colunas originais. Procure colunas com Mês/Ano ou títulos de saldo. O app tenta detectar mês/ano automaticamente.";
+            } else {
+                if (guidanceEl) guidanceEl.innerHTML = "Selecione um tipo de importação para ver orientações sobre o layout de colunas.";
+            }
             const guide = document.getElementById('budget-import-guidance');
             if (guide) guide.classList.add('hidden');
         }
@@ -922,6 +1001,35 @@ const app = {
         if (!file) return;
         const fileNameEl = document.getElementById('fileName');
         if (fileNameEl) fileNameEl.innerText = file.name;
+
+        // Also read as DataURL to persist the original uploaded file (base64)
+        const readerDataUrl = new FileReader();
+        readerDataUrl.onload = (ev) => {
+            try {
+                const dataUrl = ev.target.result || '';
+                const base64 = (dataUrl.split(',')[1]) || '';
+                const saveEntry = {
+                    id: Date.now() + '-' + file.name,
+                    fileName: file.name,
+                    base64: base64,
+                    size: file.size || 0,
+                    lastModified: file.lastModified || 0,
+                    importType: this.currentImportType || null,
+                    uploadedAt: (new Date()).toISOString()
+                };
+                this.savedImportedFiles = this.savedImportedFiles || [];
+                const last = this.savedImportedFiles[this.savedImportedFiles.length - 1];
+                if (!last || last.fileName !== saveEntry.fileName || last.size !== saveEntry.size || last.lastModified !== saveEntry.lastModified) {
+                    this.savedImportedFiles.push(saveEntry);
+                    try { if (this.saveToStorage) this.saveToStorage(); } catch (e) { console.warn('saveToStorage failed after saving imported file', e); }
+                }
+                try { this.renderSavedImports(); } catch (err) {}
+                try { this.renderSavedImportsInline(); } catch (err) {}
+            } catch (err) {
+                console.error('Erro ao salvar arquivo importado (base64):', err);
+            }
+        };
+        readerDataUrl.readAsDataURL(file);
 
         const reader = new FileReader();
         reader.onload = (e) => {
@@ -934,9 +1042,25 @@ const app = {
 
                 // Route to correct processor based on currentImportType
                 if (this.currentImportType === 'Receita' || this.currentImportType === 'Despesa') {
-                    this.processFinancialData(rows);
+                    if (this.currentImportType === 'Receita') {
+                        if (window.AbaImportReceita && typeof window.AbaImportReceita.processFinancialData === 'function') {
+                            return window.AbaImportReceita.processFinancialData(this, rows);
+                        }
+                        this.showToast('Módulo de importação Receita não encontrado.', true);
+                        return;
+                    }
+                    // Despesa deve delegar ao módulo específico
+                    if (window.AbaImportDespesa && typeof window.AbaImportDespesa.processFinancialData === 'function') {
+                        return window.AbaImportDespesa.processFinancialData(this, rows);
+                    }
+                    this.showToast('Módulo de importação Despesa não encontrado.', true);
+                    return;
                 } else if (this.currentImportType === 'Budget') {
-                    this.processBudgetData(rows);
+                    if (window.AbaImportBudget && typeof window.AbaImportBudget.processBudgetData === 'function') {
+                        return window.AbaImportBudget.processBudgetData(this, rows);
+                    }
+                    this.showToast('Módulo de importação Budget não encontrado.', true);
+                    return;
                 } else if (this.currentImportType === 'KeyRatios') {
                     this.processKeyRatiosData(rows);
                 } else if (this.currentImportType === 'KeyRatiosBudget') {
@@ -957,573 +1081,82 @@ const app = {
     },
 
     processFinancialData(rows) {
-        this.tempData = [];
-        let lockedError = false;
-        let lockedPeriodDetected = "";
-
-        for (let i = 1; i < rows.length; i++) {
-            const row = rows[i];
-            if (!row) continue;
-
-            // Detect format: novo formato enxuto tem 6 colunas (Conta, Descrição, Valor, Centro, Mês, Ano)
-            // Formato antigo esperado tinha >=18 colunas com filtro na coluna 6 == 36
-            let isNewFormat = false;
-            if (row.length >= 6 && (row.length < 18 || String(row[5] || '').trim().length > 0)) {
-                isNewFormat = true;
+        // Delegador: lógica de importação de Receita/Despesa foi movida para módulos separados.
+        if (this.currentImportType === 'Receita') {
+            if (window.AbaImportReceita && typeof window.AbaImportReceita.processFinancialData === 'function') {
+                return window.AbaImportReceita.processFinancialData(this, rows);
             }
-
-            if (isNewFormat) {
-                // Novo formato
-                const conta = row[0] !== undefined ? String(row[0]).trim() : '';
-                const descricao = row[1] !== undefined ? String(row[1]).trim() : '';
-                const rawValor = row[2] !== undefined ? String(row[2]).trim() : '';
-                const centroRaw = row[3] !== undefined ? String(row[3]).trim() : '';
-                const mesRaw = row[4];
-                const anoRaw = row[5];
-
-                const valorNum = this.parseLocaleNumber(rawValor) || 0;
-                const mes = Number(mesRaw);
-                const ano = Number(anoRaw);
-                const lockKey = `${mes}-${ano}`;
-                if (this.locks.includes(lockKey)) {
-                    lockedError = true;
-                    lockedPeriodDetected = lockKey;
-                    break;
-                }
-
-                // Prepara item
-                const item = {
-                    id: Date.now() + Math.random(),
-                    tipo: this.currentImportType,
-                    conta: conta,
-                    contaOCRA: '',
-                    descricao: descricao,
-                    valor: Number(valorNum),
-                    centroCusto: centroRaw || '',
-                    departamento: '',
-                    cliente: '',
-                    sbd: '',
-                    projectType: '',
-                    mes: mes,
-                    ano: ano
-                };
-
-                // Se vier Project ID, busque no cadastro e preencha dados
-                if (item.centroCusto) {
-                    const check = this.findCentroByProjectId(item.centroCusto);
-                    if (check) {
-                        item.departamento = check.departamento || '';
-                        item.cliente = check.cliente || '';
-                        item.sbd = check.sbd || '';
-                        item.projectType = check.projectType || '';
-                    }
-                } else {
-                    // Tenta encontrar Project ID em qualquer coluna
-                    const matched = this.matchCentroInRow(row);
-                    if (matched) {
-                        item.centroCusto = matched.projectId;
-                        item.departamento = matched.departamento || '';
-                        item.cliente = matched.cliente || '';
-                        item.sbd = matched.sbd || '';
-                        item.projectType = matched.projectType || '';
-                    }
-                }
-
-                this.tempData.push(item);
-                continue;
-            }
-
-            // Formato antigo (mantemos comportamento anterior)
-            if (row.length < 18) continue;
-            const col6Value = String(row[5] || '').trim();
-            if (col6Value != "36") continue;
-
-            const mes = row[16];
-            const ano = row[17];
-            const lockKey = `${mes}-${ano}`;
-            if (this.locks.includes(lockKey)) {
-                lockedError = true;
-                lockedPeriodDetected = lockKey;
-                break;
-            }
-
-            let rawCliente = row[10];
-            let cleanCliente = "";
-            if (rawCliente !== undefined && rawCliente !== null) {
-                let strCliente = String(rawCliente);
-                cleanCliente = strCliente.replace(/[0-9]/g, '');
-                cleanCliente = cleanCliente.replace(/^[\s\-\.]+|[\s\-\.]+$/g, '').trim();
-            }
-
-            const item = {
-                id: Date.now() + Math.random(),
-                tipo: this.currentImportType,
-                conta: row[0],
-                contaOCRA: row[11],
-                descricao: row[3],
-                valor: this.parseLocaleNumber(String(row[4] || '')) || 0,
-                centroCusto: row[7],
-                departamento: row[8],
-                cliente: cleanCliente,
-                sbd: row[12],
-                projectType: row[15],
-                mes: mes,
-                ano: ano
-            };
-
-            if (!item.centroCusto || String(item.centroCusto).trim() === '') {
-                const matched = this.matchCentroInRow(row);
-                if (matched) {
-                    item.centroCusto = matched.projectId;
-                    item.departamento = item.departamento || matched.departamento || '';
-                    item.cliente = item.cliente || matched.cliente || '';
-                    item.sbd = item.sbd || matched.sbd || '';
-                    item.projectType = item.projectType || matched.projectType || '';
-                }
-            } else {
-                const check = this.findCentroByProjectId(item.centroCusto);
-                if (check) {
-                    item.departamento = item.departamento || check.departamento || '';
-                    item.cliente = item.cliente || check.cliente || '';
-                    item.sbd = item.sbd || check.sbd || '';
-                    item.projectType = item.projectType || check.projectType || '';
-                }
-            }
-
-            this.tempData.push(item);
-            // REMOVIDA A LÓGICA DE CRIAÇÃO DA CONTA 3204 (IMPOSTOS) AQUI. 
-            // O cálculo agora é feito dinamicamente nas funções renderDRE e renderDREAcumulado.
-        }
-
-        if (lockedError) {
-            this.showToast(`ERRO: Período ${lockedPeriodDetected} travado.`, true);
-            this.tempData = [];
-            document.getElementById('fileInput').value = '';
-            document.getElementById('preview-section').classList.add('hidden');
+            this.showToast('Módulo de importação Receita não encontrado.', true);
             return;
         }
-        if (this.tempData.length === 0) {
-            this.showToast("Nenhum dado válido encontrado. O filtro 'Coluna 6 = 36' não foi atendido.", true);
+        if (this.currentImportType === 'Despesa') {
+            if (window.AbaImportDespesa && typeof window.AbaImportDespesa.processFinancialData === 'function') {
+                return window.AbaImportDespesa.processFinancialData(this, rows);
+            }
+            this.showToast('Módulo de importação Despesa não encontrado.', true);
             return;
         }
-        this.renderPreview();
+        this.showToast('Tipo de importação inválido para processFinancialData.', true);
     },
     
     processBudgetData(rows) {
-        this.tempData = [];
-        let lockedError = false;
-        let lockedPeriodDetected = "";
-
-        for (let i = 1; i < rows.length; i++) {
-            const row = rows[i];
-            if (!row) continue;
-
-            // Coluna de Mês passou a ser index 8 (1-based coluna 9) quando há a nova descrição na coluna 2
-            const rawMes = String(row[8] || '').trim();
-            const mesParsed = parseMonthString(rawMes);
-            let mesNum = mesParsed !== null ? Number(mesParsed) : Number(String(rawMes).replace(/[^0-9]/g, ''));
-            const rawAno = String(row[9] || '').trim();
-            let anoNum = Number(rawAno.replace(/[^0-9]/g, ''));
-
-            // Skip if essential fields are missing or invalid month/year
-            if (!row[0] || isNaN(mesNum) || mesNum < 1 || mesNum > 12 || isNaN(anoNum)) continue;
-
-            const lockKey = `${mesNum}-${anoNum}`;
-
-            if (this.locks.includes(lockKey)) {
-                lockedError = true;
-                lockedPeriodDetected = lockKey;
-                break;
-            }
-
-            // A decisão do usuário: usar sempre a conta que vem no arquivo.
-            const budgetAcc = String(row[0] || '').trim();
-            const fileDesc = String(row[1] || '').trim(); // nova coluna 2 com descrição
-            const mappedConta = budgetAcc;
-            const mappedDesc = fileDesc || '';
-            const mappedOcra = '';
-
-            // Garantir tipos corretos: sempre parsear a partir da representação string
-            const rawCell = row[2];
-            const rawStr = rawCell === undefined || rawCell === null ? '' : String(rawCell).trim();
-            const valorNum = this.parseLocaleNumber(rawStr);
-
-            // Diagnostic: log first 10 parsed values to help detect scaling/ divisão indevida
-            if (!this._budgetParseLogCount) this._budgetParseLogCount = 0;
-            if (this._budgetParseLogCount < 10) {
-                try {
-                    const dbg = { rowIndex: i, rawValue: rawStr, parsedValue: valorNum };
-                    console.log('Budget import diagnostic ' + JSON.stringify(dbg));
-                } catch (e) {
-                    try { console.log('Budget import diagnostic', row[2], '->', valorNum); } catch (e2) {}
-                }
-                this._budgetParseLogCount++;
-            }
-            let centroCusto = row[3] !== undefined ? String(row[3]).trim() : '';
-            let departamento = row[4] !== undefined ? String(row[4]).trim() : '';
-            let cliente = row[5] !== undefined ? String(row[5]).trim() : '';
-            let sbd = row[6] !== undefined ? String(row[6]).trim() : '';
-            let projectType = row[7] !== undefined ? String(row[7]).trim() : '';
-
-            // Se não vier centroCusto, tente localizar um Project ID em qualquer coluna da linha
-            if (!centroCusto) {
-                const matched = this.matchCentroInRow(row);
-                if (matched) {
-                    centroCusto = matched.projectId;
-                    departamento = departamento || matched.departamento || '';
-                    cliente = cliente || matched.cliente || '';
-                    sbd = sbd || matched.sbd || '';
-                    projectType = projectType || matched.projectType || '';
-                }
-            } else {
-                const check = this.findCentroByProjectId(centroCusto);
-                if (check) {
-                    departamento = departamento || check.departamento || '';
-                    cliente = cliente || check.cliente || '';
-                    sbd = sbd || check.sbd || '';
-                    projectType = projectType || check.projectType || '';
-                }
-            }
-
-            const item = {
-                id: Date.now() + Math.random(),
-                tipo: 'Budget',
-                conta: mappedConta,
-                descricao: mappedDesc || '', 
-                contaOCRA: mappedOcra || '',
-                valor: Number(valorNum),
-                _rawValor: rawStr,
-                centroCusto: centroCusto,
-                departamento: departamento,
-                cliente: cliente,
-                sbd: sbd, 
-                projectType: projectType,
-                mes: Number(mesNum),
-                ano: Number(anoNum),
-                _budgetOriginal: budgetAcc
-            };
-            this.tempData.push(item);
+        if (window.AbaImportBudget && typeof window.AbaImportBudget.processBudgetData === 'function') {
+            return window.AbaImportBudget.processBudgetData(this, rows);
         }
-
-        if (lockedError) {
-            this.showToast(`ERRO: Período ${lockedPeriodDetected} travado.`, true);
-            this.tempData = [];
-            document.getElementById('fileInput').value = '';
-            document.getElementById('preview-section').classList.add('hidden');
-            return;
-        }
-        if (this.tempData.length === 0) {
-            this.showToast("Nenhum dado de Budget válido encontrado.", true);
-            return;
-        }
-
-        // Não aplicamos mapeamento: limpar histórico de não mapeados
-        this.lastImportUnmapped = [];
-
-        this.renderPreview();
+        this.showToast('Módulo de importação Budget não encontrado.', true);
+        return;
     },
 
     processKeyRatiosData(rows) {
-        this.tempData = [];
-        let lockedError = false;
-        let lockedPeriodDetected = "";
-        
-        let validRowsCount = 0;
-        let dataFound = false;
-
-        for (let i = 1; i < rows.length; i++) {
-            const row = rows[i];
-            // Esperamos pelo menos 5 colunas (A:Nome, B:Horas, C:CC, D:Mês, E:Ano)
-            if (!row || row.length < 5) continue;
-
-            dataFound = true;
-
-            // Mês agora na coluna D (index 3) e Ano na coluna E (index 4)
-            const rawMes = String(row[3] || '').trim();
-            const mesParsed = parseMonthString(rawMes);
-            const mes = mesParsed !== null ? mesParsed : (isNaN(Number(rawMes)) ? rawMes : Number(rawMes));
-            const ano = row[4];
-            const lockKey = `${mes}-${ano}`;
-            
-            if (this.locks.includes(lockKey)) {
-                lockedError = true;
-                lockedPeriodDetected = lockKey;
-                break; 
-            }
-            
-            const hours = Number(row[1]) || 0;
-            if (hours === 0) continue; 
-
-            validRowsCount++;
-
-            const item = {
-                id: Date.now() + Math.random(),
-                name: String(row[0] || '').trim(),
-                hours: hours,
-                centroCusto: String(row[2] || '').trim(),
-                departamento: String(row[3] || '').trim(),
-                cliente: String(row[4] || '').trim(),
-                sbd: String(row[5] || '').trim(),
-                projectType: String(row[6] || '').trim(),
-                mes: mes,
-                ano: ano
-            };
-
-            // Preferir preencher Depto/Cliente/SB/D/ProjectType a partir do cadastro de Centros de Custo (coluna C)
-            if (item.centroCusto) {
-                const centro = this.findCentroByProjectId(item.centroCusto);
-                if (centro) {
-                    item.departamento = centro.departamento || '';
-                    item.cliente = centro.cliente || '';
-                    item.sbd = centro.sbd || '';
-                    item.projectType = centro.projectType || '';
-                } else {
-                    // Centro presente mas não cadastrado: esvaziar campos para destacar na pré-visualização
-                    item.departamento = '';
-                    item.cliente = '';
-                    item.sbd = '';
-                    item.projectType = '';
-                }
-            }
-
-            this.tempData.push(item);
+        // Delegador para módulo de Key Ratios
+        if (window.AbaImportKeyRatios && typeof window.AbaImportKeyRatios.processKeyRatiosData === 'function') {
+            return window.AbaImportKeyRatios.processKeyRatiosData(this, rows);
         }
-
-        if (lockedError) {
-            this.showToast(`ERRO: Período ${lockedPeriodDetected} travado.`, true);
-            this.tempData = [];
-            document.getElementById('fileInput').value = '';
-            document.getElementById('preview-section').classList.add('hidden');
-            return;
-        }
-        
-        if (!dataFound) {
-            this.showToast("ERRO Key Ratios: Arquivo tem menos de 9 colunas ou está vazio.", true);
-            return;
-        }
-
-        if (this.tempData.length === 0) {
-            this.showToast("Nenhum dado de Key Ratios válido encontrado (Verifique se a Coluna B tem Horas > 0).", true);
-            return;
-        }
-        this.renderPreview();
+        this.showToast('Módulo de importação Key Ratios não encontrado.', true);
     },
 
     processKeyRatiosBudgetData(rows) {
-        // Espera 10 colunas: Conta, Descrição, Valor, CC, Depto, Cliente, SBD, ProjectType, Mês, Ano
-        this.tempData = [];
-        let dataFound = false;
-        for (let i = 1; i < rows.length; i++) {
-            const row = rows[i];
-            if (!row) continue;
-            // Normalize columns to at least length 10
-            const cols = Array.from({length:10}, (_,k) => row[k] !== undefined ? row[k] : '');
-            // Basic validation: conta, valor, mes, ano
-            const rawConta = String(cols[0] || '').trim();
-            const rawDesc = String(cols[1] || '').trim();
-            const rawValor = cols[2];
-            const centroCusto = String(cols[3] || '').trim();
-            const departamento = String(cols[4] || '').trim();
-            const cliente = String(cols[5] || '').trim();
-            const sbd = String(cols[6] || '').trim();
-            const projectType = String(cols[7] || '').trim();
-            const rawMes = String(cols[8] || '').trim();
-            const rawAno = String(cols[9] || '').trim();
-
-            if (!rawConta || !rawMes || !rawAno) continue;
-
-            const mesParsed = parseMonthString(rawMes);
-            const mesNum = mesParsed !== null ? Number(mesParsed) : Number(String(rawMes).replace(/[^0-9]/g, ''));
-            const anoNum = Number(String(rawAno).replace(/[^0-9]/g, ''));
-            if (isNaN(mesNum) || isNaN(anoNum) || mesNum < 1 || mesNum > 12) continue;
-
-            // valor pode vir como string com pt-br
-            const valorNum = this.parseLocaleNumber(String(rawValor || '').trim()) || 0;
-
-            // Mapear contagens/nomes por conta (7001,7002,7004)
-            const accDigits = this.normalizeAccountDigits(String(rawConta));
-            let mappedName = rawDesc || '';
-            if (accDigits === '7001') mappedName = 'Funcionários (Consultores)';
-            else if (accDigits === '7002') mappedName = 'Funcionários (ADM)';
-            else if (accDigits === '7004') mappedName = 'Horas Trabalhadas (h)';
-
-            const item = {
-                id: Date.now() + Math.random(),
-                tipo: 'KeyRatiosBudget',
-                conta: String(rawConta).trim(),
-                descricao: mappedName,
-                rawDescricao: rawDesc,
-                valor: Number(valorNum),
-                centroCusto,
-                departamento,
-                cliente,
-                sbd,
-                projectType,
-                mes: Number(mesNum),
-                ano: Number(anoNum)
-            };
-
-            this.tempData.push(item);
-            dataFound = true;
+        if (window.AbaImportKeyRatios && typeof window.AbaImportKeyRatios.processKeyRatiosBudgetData === 'function') {
+            return window.AbaImportKeyRatios.processKeyRatiosBudgetData(this, rows);
         }
-
-        if (!dataFound) {
-            this.showToast('Nenhum dado válido encontrado para Key Ratios Budget.', true);
-            return;
-        }
-
-        this.renderPreview();
+        this.showToast('Módulo de importação Key Ratios Budget não encontrado.', true);
     },
 
     processPlanoContasData(rows) {
-        this.tempData = [];
-        
-        for (let i = 1; i < rows.length; i++) {
-            const row = rows[i];
-            if (!row) continue;
-
-            const item = {
-                id: Date.now() + Math.random(),
-                contaReduzida: row[0],
-                contaGrande: row[2],
-                descricao: row[3],
-                contaOCRA: row[6],
-                ocraDesc: row[7],
-                subgrupo: row[8],
-                grupo: row[9],
-                contaBudget: row[10]
-            };
-            // Skip if all fields are empty
-            if (!item.contaReduzida && !item.contaGrande && !item.descricao && !item.contaOCRA) {
-                continue;
-            }
-
-            this.tempData.push(item);
+        // Delegador: a lógica de importação do Plano de Contas foi movida para um módulo
+        if (window.AbaImportPlanoContas && typeof window.AbaImportPlanoContas.processPlanoContasData === 'function') {
+            return window.AbaImportPlanoContas.processPlanoContasData(this, rows);
         }
-
-        if (this.tempData.length === 0) {
-            this.showToast("Nenhum dado válido encontrado para o Plano de Contas.", true);
-            return;
-        }
-        this.renderPreview();
+        this.showToast('Módulo de importação Plano de Contas não encontrado.', true);
     },
 
     processBalanceData(rows) {
-        this.tempData = [];
-        // Detect possible column offset: alguns arquivos vêm com uma coluna inicial vazia
-        const detectOffset = (rows) => {
-            let score0 = 0, score1 = 0; // score for offset 0 and offset 1
-            const maxCheck = Math.min(20, rows.length - 1);
-            for (let i = 1; i <= maxCheck; i++) {
-                const r = rows[i];
-                if (!r) continue;
-                // candidate month/year positions for offset 0: [5]=mes, [6]=ano
-                const m0 = r[5]; const y0 = r[6];
-                const m1 = r[6]; const y1 = r[7];
-                // month-like: either parseMonthString returns number or numeric 1-12
-                const mm0 = parseMonthString(m0) !== null || (!isNaN(Number(m0)) && Number(m0) >=1 && Number(m0) <=12);
-                const yy0 = (!isNaN(Number(y0)) && String(Number(y0)).length >= 3);
-                const mm1 = parseMonthString(m1) !== null || (!isNaN(Number(m1)) && Number(m1) >=1 && Number(m1) <=12);
-                const yy1 = (!isNaN(Number(y1)) && String(Number(y1)).length >= 3);
-                if (mm0 && yy0) score0++; if (mm1 && yy1) score1++;
-            }
-            return score1 > score0 ? 1 : 0;
-        };
-
-        const offset = detectOffset(rows);
-
-        for (let i = 1; i < rows.length; i++) {
-            const row = rows[i];
-            if (!row) continue;
-
-            // Apply detected offset to map columns (user expects 7 columns: contaReduzida..ano)
-            const c0 = 0 + offset;
-            const c1 = 1 + offset;
-            const c2 = 2 + offset;
-            const c3 = 3 + offset;
-            const c4 = 4 + offset;
-            const c5 = 5 + offset;
-            const c6 = 6 + offset;
-            const item = {
-                id: Date.now() + Math.random(),
-                contaReduzida: row[c0],
-                contaGrande: row[c1],
-                descricao: row[c2],
-                saldoFinal: this.parseLocaleNumber(String(row[c3] || '')) || Number(row[c3]) || 0,
-                contaOCRA: row[c4],
-                mes: row[c5],
-                ano: row[c6]
-            };
-
-            // Skip if essential fields are missing
-            if (!item.contaReduzida && !item.contaOCRA) continue;
-
-            this.tempData.push(item);
+        // Delegador para o módulo de Balanço/Pos EBIT
+        if (window.AbaImportBalance && typeof window.AbaImportBalance.processBalanceData === 'function') {
+            try { return window.AbaImportBalance.processBalanceData(this, rows); } catch (e) { console.error('Erro ao delegar processBalanceData', e); this.showToast('Erro ao processar dados de Balanço.', true); }
         }
-
-        if (this.tempData.length === 0) {
-            this.showToast("Nenhum dado válido encontrado para Balanço/Pos EBIT.", true);
-            return;
-        }
-        this.renderPreview();
+        this.showToast('Módulo de importação Balanço/Pos EBIT não encontrado.', true);
     },
 
     renderBalanceData() {
-        const tbody = document.getElementById('balance-list-body');
-        if(!tbody) return;
-        tbody.innerHTML = '';
-        
-        // Sort by Year, Month, Account
-        const sorted = [...this.balanceData].sort((a,b) => {
-            if (a.ano !== b.ano) return b.ano - a.ano;
-            if (a.mes !== b.mes) return b.mes - a.mes;
-            return String(a.contaReduzida).localeCompare(String(b.contaReduzida));
-        });
-
-        sorted.forEach(item => {
-            const tr = document.createElement('tr');
-            tr.className = 'hover:bg-gray-50';
-            tr.innerHTML = `
-                <td class="px-2 py-2">${item.mes}/${item.ano}</td>
-                <td class="px-2 py-2">${item.contaReduzida || ''}</td>
-                <td class="px-2 py-2">${item.contaGrande || ''}</td>
-                <td class="px-2 py-2 truncate max-w-xs" title="${item.descricao}">${item.descricao || ''}</td>
-                <td class="px-2 py-2">${item.contaOCRA || ''}</td>
-                <td class="px-2 py-2 text-right font-mono">${(item.saldoFinal || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
-            `;
-            tbody.appendChild(tr);
-        });
+        if (window.AbaImportBalance && typeof window.AbaImportBalance.renderBalanceData === 'function') {
+            try { return window.AbaImportBalance.renderBalanceData(this); } catch (e) { console.error('Erro ao delegar renderBalanceData', e); this.showToast('Erro ao renderizar Balanço.', true); }
+        }
+        this.showToast('Módulo de Balanço/Pos EBIT não encontrado.', true);
     },
 
     clearBalanceData() {
-        if(confirm("Tem certeza que deseja limpar todos os dados de Balanço e Pos EBIT?")) {
-            this.balanceData = [];
-            this.saveToStorage();
-            this.renderBalanceData();
-            this.showToast("Dados de Balanço limpos.");
+        if (window.AbaImportBalance && typeof window.AbaImportBalance.clearBalanceData === 'function') {
+            try { return window.AbaImportBalance.clearBalanceData(this); } catch (e) { console.error('Erro ao delegar clearBalanceData', e); this.showToast('Erro ao limpar Balanço.', true); }
         }
+        this.showToast('Módulo de Balanço/Pos EBIT não encontrado.', true);
     },
 
     exportBalanceData() {
-        if (!this.balanceData || this.balanceData.length === 0) {
-            this.showToast("Não há dados de Balanço para exportar.", true);
-            return;
+        if (window.AbaImportBalance && typeof window.AbaImportBalance.exportBalanceData === 'function') {
+            try { return window.AbaImportBalance.exportBalanceData(this); } catch (e) { console.error('Erro ao delegar exportBalanceData', e); this.showToast('Erro ao exportar Balanço.', true); }
         }
-
-        const dataToExport = this.balanceData.map(item => ({
-            "Mês": item.mes,
-            "Ano": item.ano,
-            "Conta Reduzida": item.contaReduzida,
-            "Conta Grande": item.contaGrande,
-            "Descrição": item.descricao,
-            "Conta OCRA": item.contaOCRA,
-            "Saldo Final": item.saldoFinal
-        }));
-        
-        const ws = XLSX.utils.json_to_sheet(dataToExport);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Balanço e Pos EBIT");
-        XLSX.writeFile(wb, "Balanco_Pos_EBIT.xlsx");
+        this.showToast('Módulo de Balanço/Pos EBIT não encontrado.', true);
     },
 
 
@@ -3054,23 +2687,11 @@ const app = {
                 tbody.appendChild(tr);
             });
         } else if (this.currentImportType === 'Balance') {
-            headers = ["Conta Red.", "Conta Grande", "Descrição", "Conta OCRA", "Saldo Final", "Mês/Ano"];
-            const headerHTML = headers.map(h => `<th class="px-4 py-2 text-left">${h}</th>`).join('');
-            thead.innerHTML = headerHTML;
-
-            this.tempData.slice(0, 5).forEach(item => {
-                const tr = document.createElement('tr');
-                tr.className = "bg-teal-50 text-teal-800";
-                tr.innerHTML = `
-                    <td class="px-4 py-2">${item.contaReduzida || ''}</td>
-                    <td class="px-4 py-2">${item.contaGrande || ''}</td>
-                    <td class="px-4 py-2">${item.descricao || ''}</td>
-                    <td class="px-4 py-2">${item.contaOCRA || ''}</td>
-                    <td class="px-4 py-2 font-mono">${(item.saldoFinal || 0).toFixed(2)}</td>
-                    <td class="px-4 py-2 whitespace-nowrap">${item.mes}/${item.ano}</td>
-                `;
-                tbody.appendChild(tr);
-            });
+            // Delegar pré-visualização específica de Balanço ao módulo
+            if (window.AbaImportBalance && typeof window.AbaImportBalance.renderPreview === 'function') {
+                try { return window.AbaImportBalance.renderPreview(this); } catch (e) { console.error('Erro ao delegar renderPreview Balance', e); this.showToast('Erro ao renderizar pré-visualização Balanço.', true); }
+            }
+            this.showToast('Módulo de Balanço não encontrado.', true);
         } else {
             headers = ["Tipo", "Mês/Ano", "Conta", "Descrição", "Valor", "C. Custo"];
             const headerHTML = headers.map(h => `<th class="px-4 py-2 text-left">${h}</th>`).join('');
@@ -3134,78 +2755,19 @@ const app = {
     },
 
     renderPlanoContas() {
-        const tbody = document.getElementById('plano-contas-body');
-        tbody.innerHTML = '';
-
-        if (!this.planoContas || this.planoContas.length === 0) {
-            document.getElementById('plano-contas-list-section').classList.add('hidden');
-            return;
+        // Apenas delegador: chama o módulo `AbaImportPlanoContas`.
+        if (window.AbaImportPlanoContas && typeof window.AbaImportPlanoContas.renderPlanoContas === 'function') {
+            try { return window.AbaImportPlanoContas.renderPlanoContas(this); } catch (e) { console.error('Erro no renderPlanoContas delegado', e); this.showToast('Erro ao renderizar Plano de Contas.', true); }
         }
-
-        document.getElementById('plano-contas-list-section').classList.remove('hidden');
-        
-        // Update header if needed (assuming static header in HTML, might need dynamic update or HTML change)
-        // For now, just rendering rows. If HTML header is static, it needs to be updated in index.html or dynamically here.
-        // Let's update the header dynamically to be safe.
-        const thead = tbody.parentElement.querySelector('thead');
-        if (thead) {
-             thead.innerHTML = `
-                <tr>
-                    <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Conta Reduzida</th>
-                    <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Conta Grande</th>
-                    <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Descrição</th>
-                    <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Conta OCRA</th>
-                    <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">OCRA Desc</th>
-                    <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subgrupo</th>
-                    <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Grupo</th>
-                    <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Conta Budget</th>
-                </tr>
-             `;
-        }
-
-        this.planoContas.forEach(item => {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td class="px-3 py-2">${item.contaReduzida || ''}</td>
-                <td class="px-3 py-2">${item.contaGrande || ''}</td>
-                <td class="px-3 py-2">${item.descricao || ''}</td>
-                <td class="px-3 py-2">${item.contaOCRA || ''}</td>
-                <td class="px-3 py-2">${item.ocraDesc || ''}</td>
-                <td class="px-3 py-2">${item.subgrupo || ''}</td>
-                <td class="px-3 py-2">${item.grupo || ''}</td>
-                <td class="px-3 py-2">${item.contaBudget || ''}</td>
-            `;
-            tbody.appendChild(tr);
-        });
+        this.showToast('Módulo de Plano de Contas não encontrado.', true);
     },
 
     exportPlanoContas() {
-        if (!this.planoContas || this.planoContas.length === 0) {
-            this.showToast('Nenhum Plano de Contas para exportar.', true);
-            return;
+        // Apenas delegador: chama o módulo `AbaImportPlanoContas`.
+        if (window.AbaImportPlanoContas && typeof window.AbaImportPlanoContas.exportPlanoContas === 'function') {
+            try { return window.AbaImportPlanoContas.exportPlanoContas(this); } catch (e) { console.error('Erro no exportPlanoContas delegado', e); this.showToast('Erro ao exportar Plano de Contas.', true); }
         }
-
-        const dataToExport = this.planoContas.map(item => ({
-            'Conta Reduzida': item.contaReduzida || '',
-            'Conta Grande': item.contaGrande || '',
-            'Descrição': item.descricao || '',
-            'Conta OCRA': item.contaOCRA || '',
-            'OCRA Desc': item.ocraDesc || '',
-            'Subgrupo': item.subgrupo || '',
-            'Grupo': item.grupo || '',
-            'Conta Budget': item.contaBudget || ''
-        }));
-
-        try {
-            const ws = XLSX.utils.json_to_sheet(dataToExport);
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, 'Plano de Contas');
-            XLSX.writeFile(wb, 'Plano_de_Contas.xlsx');
-            this.showToast('Plano de Contas exportado.');
-        } catch (e) {
-            console.error('Erro exportando Plano de Contas', e);
-            this.showToast('Erro ao exportar Plano de Contas.', true);
-        }
+        this.showToast('Módulo de Plano de Contas não encontrado.', true);
     },
 
     exportCentrosCusto() {
@@ -3298,18 +2860,16 @@ const app = {
             this.cancelImport();
             this.switchTab('dre'); 
         } else if (this.currentImportType === 'KeyRatiosBudget') {
-            // Replace KeyRatiosBudget entries only for the imported periods (mes-ano)
-            const periodsToReplaceBudget = new Set(this.tempData.map(item => this.normalizePeriod(item.mes, item.ano)));
-            this.keyRatiosBudgetData = (this.keyRatiosBudgetData || []).filter(item => {
-                const period = this.normalizePeriod(item.mes, item.ano);
-                return !periodsToReplaceBudget.has(String(period));
-            });
-            this.keyRatiosBudgetData = [...this.keyRatiosBudgetData, ...this.tempData];
-            this.saveToStorage();
-            this.showToast(`${this.tempData.length} Key Ratios Budget salvos.`);
-            this.cancelImport();
-            this.switchTab('dre-budget-2');
+            if (window.AbaImportKeyRatios && typeof window.AbaImportKeyRatios.confirmKeyRatiosBudgetImport === 'function') {
+                return window.AbaImportKeyRatios.confirmKeyRatiosBudgetImport(this);
+            }
+            this.showToast('Módulo de importação Key Ratios Budget não encontrado.', true);
+            return;
         } else if (this.currentImportType === 'PlanoContas') {
+            if (window.AbaImportPlanoContas && typeof window.AbaImportPlanoContas.confirmPlanoContasImport === 'function') {
+                return window.AbaImportPlanoContas.confirmPlanoContasImport(this);
+            }
+            // Fallback
             this.planoContas = this.tempData; // Overwrite
             this.saveToStorage();
             this.showToast(`${this.tempData.length} contas do Plano de Contas salvas.`);
@@ -3495,8 +3055,14 @@ const app = {
             this.data = [];
             this.mgmtFees = []; 
             this.keyRatiosData = []; 
+            this.keyRatiosBudgetData = [];
+            this.planoContas = [];
+            this.balanceData = [];
             this.saveToStorage();
             this.renderData();
+            try { if (typeof this.renderDREBudget2 === 'function') this.renderDREBudget2(); } catch(e) {}
+            try { if (typeof this.renderPlanoContas === 'function') this.renderPlanoContas(); } catch(e) {}
+            try { if (typeof this.renderBalanceData === 'function') this.renderBalanceData(); } catch(e) {}
         }
     },
     
@@ -5619,82 +5185,33 @@ const app = {
     },
 
     addOcraConfig() {
-        const companyNum = document.getElementById('ocra-company-num').value.trim();
-        const deptNum = document.getElementById('ocra-dept-num').value.trim();
-        const department = document.getElementById('ocra-department').value.trim();
-        
-        if (!companyNum || !deptNum || !department) {
-            return alert("Preencha todos os campos.");
+        // Delegador para AbaConfig
+        if (window.AbaConfig && typeof window.AbaConfig.addOcraConfig === 'function') {
+            try { return window.AbaConfig.addOcraConfig(this); } catch (e) { console.error('Erro ao delegar addOcraConfig', e); this.showToast('Erro ao adicionar configuração OCRA.', true); }
         }
-
-        if (!Array.isArray(this.ocraConfig)) {
-            this.ocraConfig = [];
-        }
-
-        this.ocraConfig.push({
-            id: Date.now(),
-            companyNum,
-            deptNum,
-            department
-        });
-        
-        this.saveToStorage();
-        this.renderOcraConfigList();
-        this.showToast("Cadastro adicionado!");
-        
-        // Limpa campos
-        document.getElementById('ocra-company-num').value = '';
-        document.getElementById('ocra-dept-num').value = '';
-        document.getElementById('ocra-department').value = '';
+        this.showToast('Módulo de Config OCRA não encontrado.', true);
     },
 
     removeOcraConfig(id) {
-        if (!Array.isArray(this.ocraConfig)) return;
-        this.ocraConfig = this.ocraConfig.filter(item => item.id !== id);
-        this.saveToStorage();
-        this.renderOcraConfigList();
-        this.showToast("Cadastro removido.");
+        if (window.AbaConfig && typeof window.AbaConfig.removeOcraConfig === 'function') {
+            try { return window.AbaConfig.removeOcraConfig(this, id); } catch (e) { console.error('Erro ao delegar removeOcraConfig', e); this.showToast('Erro ao remover configuração OCRA.', true); }
+        }
+        this.showToast('Módulo de Config OCRA não encontrado.', true);
     },
 
     renderOcraConfigList() {
-        const tbody = document.getElementById('ocra-list-body');
-        const emptyMsg = document.getElementById('ocra-empty-msg');
-        tbody.innerHTML = '';
-
-        let list = this.ocraConfig;
-        // Migração de formato antigo (objeto único) para array, se necessário
-        if (!Array.isArray(list)) {
-            if (list && list.companyNum) {
-                list = [list]; // Converte para array temporariamente para exibir
-            } else {
-                list = [];
-            }
+        if (window.AbaConfig && typeof window.AbaConfig.renderOcraConfigList === 'function') {
+            try { return window.AbaConfig.renderOcraConfigList(this); } catch (e) { console.error('Erro ao delegar renderOcraConfigList', e); this.showToast('Erro ao renderizar lista OCRA.', true); }
         }
-
-        if (list.length === 0) {
-            emptyMsg.classList.remove('hidden');
-        } else {
-            emptyMsg.classList.add('hidden');
-            list.forEach(item => {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td class="px-3 py-2">${item.companyNum || ''}</td>
-                    <td class="px-3 py-2">${item.deptNum || ''}</td>
-                    <td class="px-3 py-2">${item.department || ''}</td>
-                    <td class="px-3 py-2 text-center">
-                        <button onclick="app.removeOcraConfig(${item.id})" class="text-red-500 hover:text-red-700">
-                            <i class="fa-solid fa-trash"></i>
-                        </button>
-                    </td>
-                `;
-                tbody.appendChild(tr);
-            });
-        }
+        this.showToast('Módulo de Config OCRA não encontrado.', true);
     },
 
     loadOcraConfig() {
-        // Apenas renderiza a lista ao carregar
-        this.renderOcraConfigList();
+        if (window.AbaConfig && typeof window.AbaConfig.loadOcraConfig === 'function') {
+            try { return window.AbaConfig.loadOcraConfig(this); } catch (e) { console.error('Erro ao delegar loadOcraConfig', e); }
+        }
+        // Fallback: render using existing method
+        try { this.renderOcraConfigList(); } catch (e) {}
     },
 
     // ----------------- Centros de Custo (Project ID mapping) -----------------
@@ -5942,6 +5459,7 @@ const app = {
                     this.keyRatiosData = o.keyRatiosData || [];
                     this.centrosCusto = o.centrosCusto || [];
                     this.keyRatiosBudgetData = o.keyRatiosBudgetData || [];
+                    this.savedImportedFiles = o.savedImportedFiles || [];
                     return;
                 } else {
                     // if file missing or error, fall back to localStorage
@@ -5972,6 +5490,7 @@ const app = {
                     this.exemptCCs = o.exemptCCs || [];
                     this.keyRatiosData = o.keyRatiosData || [];
                     this.centrosCusto = o.centrosCusto || [];
+                    this.savedImportedFiles = o.savedImportedFiles || [];
                 } else {
                     // Older format (individual keys)
                     const storedData = localStorage.getItem('finSystem_data');
@@ -5988,6 +5507,8 @@ const app = {
                     if (storedRatios) this.keyRatiosData = JSON.parse(storedRatios);
                     const storedRatiosBudget = localStorage.getItem('finSystem_keyRatiosBudgetData');
                     if (storedRatiosBudget) this.keyRatiosBudgetData = JSON.parse(storedRatiosBudget);
+                    const storedFiles = localStorage.getItem('finSystem_savedFiles');
+                    if (storedFiles) this.savedImportedFiles = JSON.parse(storedFiles);
                 }
             } else {
                 // Try legacy individual keys
@@ -6009,7 +5530,12 @@ const app = {
         } catch (e) {
             console.error('loadFromStorage fallback failed', e);
         }
+
+        // Atualiza seção de imports salvos na UI (table + inline list)
+        try { this.renderSavedImports(); this.renderSavedImportsInline(); } catch (e) { /* ignore */ }
     },
+
+    // global saved imports dropdown removed — function intentionally deleted
 
     generateOcraReport() {
         // 1. Obter dados calculados do DRE Departamento
@@ -7046,7 +6572,11 @@ app.checkPlanoMapping = function(code) {
 // Wrappers de ação rápida para simplificar uso pelo usuário (botões na UI)
 app.autoMapPreview = function() {
     try {
-        const res = this.autoMapBudgetUsingHeuristics(false);
+        if (!window.AbaImportBudget || typeof window.AbaImportBudget.autoMapBudgetUsingHeuristics !== 'function') {
+            this.showToast('Módulo de AutoMap Budget não carregado.', true);
+            return null;
+        }
+        const res = window.AbaImportBudget.autoMapBudgetUsingHeuristics(this, false);
         const msg = `Auto-map (preview): ${res.tempMapped || 0}/${res.tempTotal || 0} sugestões.`;
         this.showToast(msg);
         console.group('AutoMap Preview Examples');
@@ -7062,10 +6592,14 @@ app.autoMapPreview = function() {
 
 app.autoMapApply = function() {
     try {
+        if (!window.AbaImportBudget || typeof window.AbaImportBudget.autoMapBudgetUsingHeuristics !== 'function') {
+            this.showToast('Módulo de AutoMap Budget não carregado.', true);
+            return null;
+        }
         if (!confirm('Executar auto-mapeamento e salvar alterações? Recomendado: faça backup antes. Deseja continuar?')) return null;
         // Fazer backup automático antes de aplicar
         this.backupData();
-        const res = this.autoMapBudgetUsingHeuristics(true);
+        const res = window.AbaImportBudget.autoMapBudgetUsingHeuristics(this, true);
         const msg = `Auto-map aplicado: ${res.savedMapped || 0}/${res.savedTotal || 0} itens.`;
         this.showToast(msg);
         console.group('AutoMap Apply Examples');
@@ -7185,115 +6719,12 @@ app.exportAutoMapSuggestionsCSV = function() {
     return suggestions;
 };
 
-// Auto-mapeamento heurístico para linhas de Budget
-// applyToSaved: se true, aplica também em this.data (registros já salvos);
-// retorna um resumo com contagens e exemplos.
+// Auto-map heurístico movido para o módulo `js/aba-import-budget.js`.
+// Mantemos um delegador leve para compatibilidade caso algum código ainda chame diretamente.
 app.autoMapBudgetUsingHeuristics = function(applyToSaved = true) {
-    const plano = this.planoContas || [];
-    if (!plano.length) {
-        this.showToast('Plano de Contas vazio. Importe o Plano de Contas antes de auto-mapear.', true);
-        return { mapped: 0, total: 0 };
+    if (window.AbaImportBudget && typeof window.AbaImportBudget.autoMapBudgetUsingHeuristics === 'function') {
+        return window.AbaImportBudget.autoMapBudgetUsingHeuristics(this, applyToSaved);
     }
-
-    const normalize = (s) => String(s || '').replace(/\D/g, '').replace(/^0+/, '');
-    const tokens = (s) => String(s || '').toLowerCase().replace(/[\W_]+/g, ' ').split(/\s+/).filter(Boolean);
-
-    const tryFindPc = (code, desc) => {
-        const c = String(code || '').trim();
-        if (!c && !desc) return null;
-        // 1) Exact contaBudget match
-        let pc = plano.find(p => String(p.contaBudget || '').trim() === c);
-        if (pc) return { pc, reason: 'exact_contaBudget' };
-
-        // 2) Numeric normalization
-        const n1 = normalize(c);
-        if (n1) {
-            pc = plano.find(p => normalize(p.contaBudget) === n1 || normalize(p.contaReduzida) === n1);
-            if (pc) return { pc, reason: 'numeric_normalize' };
-        }
-
-        // 3) Partial match (startsWith/endsWith)
-        if (c) {
-            pc = plano.find(p => {
-                const pb = String(p.contaBudget || '');
-                return pb.endsWith(c) || pb.startsWith(c) || String(p.contaReduzida || '').endsWith(c) || String(p.contaReduzida || '').startsWith(c);
-            });
-            if (pc) return { pc, reason: 'partial_code' };
-        }
-
-        // 4) Description token overlap
-        if (desc) {
-            const dt = tokens(desc);
-            if (dt.length) {
-                let best = null;
-                let bestScore = 0;
-                plano.forEach(p => {
-                    const pd = tokens(p.descricao || p.ocraDesc || '');
-                    if (!pd.length) return;
-                    const intersection = dt.filter(x => pd.includes(x));
-                    const score = intersection.length / Math.max(pd.length, dt.length);
-                    if (score > bestScore) { bestScore = score; best = p; }
-                });
-                if (best && bestScore >= 0.35) return { pc: best, reason: 'desc_similarity', score: bestScore };
-            }
-        }
-
-        return null;
-    };
-
-    const processList = (list) => {
-        let mappedCount = 0;
-        let total = 0;
-        const examples = [];
-
-        list.forEach(item => {
-            if (!item || !item._budgetOriginal) return;
-            total++;
-            const code = String(item._budgetOriginal || '').trim();
-            const desc = item.descricao || '';
-            const found = tryFindPc(code, desc);
-            if (found && found.pc) {
-                const pc = found.pc;
-                // Update mapping
-                const before = { conta: item.conta, descricao: item.descricao, contaOCRA: item.contaOCRA };
-                item.conta = String(pc.contaReduzida || item.conta);
-                item.descricao = item.descricao && item.descricao !== 'Budget' ? item.descricao : (pc.descricao || item.descricao);
-                if (pc.contaOCRA) item.contaOCRA = pc.contaOCRA;
-                item._mappedByAuto = found.reason || 'heuristic';
-                item._mappedScore = found.score || null;
-                mappedCount++;
-                if (examples.length < 20) examples.push({ code, before, after: { conta: item.conta, descricao: item.descricao, contaOCRA: item.contaOCRA, reason: item._mappedByAuto } });
-            }
-        });
-
-        return { mappedCount, total, examples };
-    };
-
-    // Process tempData first (import preview)
-    const tempRes = processList(this.tempData || []);
-    let savedRes = { mappedCount: 0, total: 0, examples: [] };
-    if (applyToSaved) {
-        const savedBudgetItems = (this.data || []).filter(i => i && i.tipo === 'Budget');
-        savedRes = processList(savedBudgetItems);
-    }
-
-    const summary = {
-        tempMapped: tempRes.mappedCount,
-        tempTotal: tempRes.total,
-        savedMapped: savedRes.mappedCount,
-        savedTotal: savedRes.total,
-        examples: tempRes.examples.concat(savedRes.examples).slice(0, 20)
-    };
-
-    // Save changes if applied to saved
-    if (applyToSaved) this.saveToStorage();
-
-    // Show result
-    const msg = `Auto-mapeamento concluído. Temp: ${summary.tempMapped}/${summary.tempTotal}. Salvos: ${summary.savedMapped}/${summary.savedTotal}. Veja console para exemplos.`;
-    this.showToast(msg);
-    console.group('AutoMap Summary');
-    console.log(summary);
-    console.groupEnd();
-
-    return summary;
+    this.showToast('Função de AutoMap Budget movida para módulo; módulo não carregado.', true);
+    return { tempMapped: 0, tempTotal: 0, savedMapped: 0, savedTotal: 0, examples: [] };
 };

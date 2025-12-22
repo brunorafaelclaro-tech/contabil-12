@@ -1,29 +1,5 @@
-// Use localStorage para persistência de dados localmente (sem necessidade de Firestore)
-// Esta versão tenta usar window.electron.readJSON/saveJSON (exposto pelo preload.js em Electron).
-// Se não disponível, faz fallback para localStorage.
-
-// Helper: converte abreviações de mês (pt) em número (Jan->1, Fev->2, ...)
-function parseMonthString(raw) {
-    if (raw === undefined || raw === null) return null;
-    const s = String(raw).toLowerCase().replace(/\./g, '').trim();
-    if (!s) return null;
-    if (/^jan/.test(s)) return 1;
-    if (/^fev/.test(s) || /^feb/.test(s)) return 2;
-    if (/^mar/.test(s)) return 3;
-    if (/^abr/.test(s)) return 4;
-    if (/^mai/.test(s) || /^may/.test(s)) return 5;
-    if (/^jun/.test(s)) return 6;
-    if (/^jul/.test(s)) return 7;
-    if (/^ago/.test(s) || /^aug/.test(s)) return 8;
-    if (/^set/.test(s) || /^sep/.test(s)) return 9;
-    if (/^out/.test(s) || /^oct/.test(s)) return 10;
-    if (/^nov/.test(s)) return 11;
-    if (/^dez/.test(s) || /^dec/.test(s)) return 12;
-    // Se for número escrito como string, tentar converter
-    const asNum = Number(s);
-    if (!isNaN(asNum) && asNum >= 1 && asNum <= 12) return asNum;
-    return null;
-}
+// Arquivo de backup removido. Conteúdo limpo para manter diretório organizado.
+// Se precisar do backup original, restaure a partir do histórico do editor.
 
 const app = {
             // Limpa todos os filtros da aba DRE
