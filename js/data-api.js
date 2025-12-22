@@ -215,6 +215,10 @@
             }
         },
 
+        getPlanoContas(app) {
+            return (app && Array.isArray(app.planoContas)) ? app.planoContas : [];
+        },
+
         // --- Balance data helper ---
         setBalanceData(app, list, { persist = true, render = true } = {}) {
             if (!app) return;

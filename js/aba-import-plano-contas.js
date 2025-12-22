@@ -31,8 +31,12 @@
         },
 
         confirmPlanoContasImport(app) {
-            app.planoContas = app.tempData || [];
-            app.saveToStorage();
+            if (window.DataAPI && typeof DataAPI.setPlanoContas === 'function') {
+                DataAPI.setPlanoContas(app, app.tempData || []);
+            } else {
+                app.planoContas = app.tempData || [];
+                if (app.saveToStorage) app.saveToStorage();
+            }
             app.showToast(`${(app.tempData||[]).length} contas do Plano de Contas salvas.`);
             app.cancelImport();
             try { 
@@ -50,7 +54,8 @@
                 if (!tbody) return;
                 tbody.innerHTML = '';
 
-                if (!app.planoContas || app.planoContas.length === 0) {
+                const pcList = (window.DataAPI && typeof DataAPI.getPlanoContas === 'function') ? DataAPI.getPlanoContas(app) : (app.planoContas || []);
+                if (!pcList || pcList.length === 0) {
                     const section = document.getElementById('plano-contas-list-section');
                     if (section) section.classList.add('hidden');
                     return;
@@ -75,7 +80,7 @@
                     `;
                 }
 
-                (app.planoContas || []).forEach(item => {
+                pcList.forEach(item => {
                     const tr = document.createElement('tr');
                     tr.innerHTML = `
                         <td class="px-3 py-2">${item.contaReduzida || ''}</td>
@@ -96,12 +101,13 @@
 
         exportPlanoContas(app) {
             try {
-                if (!app.planoContas || app.planoContas.length === 0) {
+                const pcList = (window.DataAPI && typeof DataAPI.getPlanoContas === 'function') ? DataAPI.getPlanoContas(app) : (app.planoContas || []);
+                if (!pcList || pcList.length === 0) {
                     if (typeof app.showToast === 'function') app.showToast('Nenhum Plano de Contas para exportar.', true);
                     return;
                 }
 
-                const dataToExport = (app.planoContas || []).map(item => ({
+                const dataToExport = pcList.map(item => ({
                     'Conta Reduzida': item.contaReduzida || '',
                     'Conta Grande': item.contaGrande || '',
                     'Descrição': item.descricao || '',
