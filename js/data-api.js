@@ -7,6 +7,20 @@
             }
             // Não há renderizador dedicado para budget, mas pode-se adicionar aqui se necessário
         },
+
+        // --- Key Ratios Data helpers ---
+        getKeyRatiosData(app) {
+            return (app && Array.isArray(app.keyRatiosData)) ? app.keyRatiosData : [];
+        },
+
+        setKeyRatiosData(app, list, { persist = true, render = true } = {}) {
+            if (!app) return;
+            app.keyRatiosData = Array.isArray(list) ? list : [];
+            if (persist && typeof app.saveToStorage === 'function') {
+                try { app.saveToStorage(); } catch(e) { console.warn('DataAPI.setKeyRatiosData: saveToStorage failed', e); }
+            }
+            // Não há renderizador dedicado para keyRatiosData, mas pode-se adicionar aqui se necessário
+        },
 (function(){
     // Pequena API para encapsular operações sobre app.data e outros datasets (receita/despesa/keyRatios)
     // Objetivo: fornecer pontos de acesso padronizados sem alterar comportamento atual.

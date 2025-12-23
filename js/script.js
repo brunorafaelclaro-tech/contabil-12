@@ -90,7 +90,7 @@ const app = {
     _mgmtSaveTimer: null,
     ocraConfig: [], // Configuração de Cadastro OCRA (Lista de objetos)
     exemptCCs: [], 
-    keyRatiosData: [], 
+    // keyRatiosData: [], // Substituído por DataAPI.getKeyRatiosData/app.keyRatiosData
         keyRatiosBudgetData: [],
         // Configurável: contas do Budget que devem sempre ser tratadas como RECEITA (forçar classificação)
         budgetRevenueAccounts: [],
@@ -554,9 +554,10 @@ const app = {
         // compute shares (headcount preferred)
         const shares = {};
         let totalShare = 0;
+        const keyRatiosData = (window.DataAPI && typeof DataAPI.getKeyRatiosData === 'function') ? DataAPI.getKeyRatiosData(this) : (this.keyRatiosData || []);
         Object.keys(groups).forEach(k => {
             const unique = new Set();
-            (this.keyRatiosData||[]).forEach(r => { if (parseInt(r.ano) === y && String(r[gb]||'').trim() === k) unique.add(r.name);});
+            (keyRatiosData||[]).forEach(r => { if (parseInt(r.ano) === y && String(r[gb]||'').trim() === k) unique.add(r.name);});
             const s = Math.max(unique.size, Math.abs(groups[k].receita || groups[k].custos || 0));
             shares[k] = s; totalShare += s;
         });
@@ -801,8 +802,9 @@ const app = {
         const sbd = filters && filters.sbd ? String(filters.sbd) : '';
         const proj = filters && filters.proj ? String(filters.proj) : '';
 
+        const keyRatiosData = (window.DataAPI && typeof DataAPI.getKeyRatiosData === 'function') ? DataAPI.getKeyRatiosData(this) : (this.keyRatiosData || []);
         for (let m = 12; m >= 1; m--) {
-            const filtered = (this.keyRatiosData || []).filter(item => {
+            const filtered = (keyRatiosData || []).filter(item => {
                 if (!item || !item.ano || !item.mes) return false;
                 if (String(item.ano) !== year) return false;
                 const itemMonth = Number(item.mes);
@@ -1185,7 +1187,7 @@ const app = {
                     planoContas: this.planoContas || [],
                     mgmtFees: this.mgmtFees || [],
                     mgmtDetailData: this.mgmtDetailData || {},
-                    keyRatiosData: this.keyRatiosData || [],
+                    keyRatiosData: (window.DataAPI && typeof DataAPI.getKeyRatiosData === 'function') ? DataAPI.getKeyRatiosData(this) : (this.keyRatiosData || []),
                     balanceData: this.balanceData || [],
                     exemptCCs: this.exemptCCs || [],
                     isAdmAllocationEnabled: this.isAdmAllocationEnabled,

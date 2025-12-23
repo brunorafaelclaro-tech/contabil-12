@@ -170,6 +170,26 @@
             app.showToast(`${(app.tempData || []).length} Key Ratios Budget salvos.`);
             app.cancelImport();
             app.switchTab('dre-budget-2');
+
+        },
+
+        confirmKeyRatiosImport(app) {
+            // Substitui keyRatiosData apenas para os períodos importados (mes-ano)
+            const periodsToReplace = new Set((app.tempData || []).map(item => app.normalizePeriod(item.mes, item.ano)));
+            let newList = (DataAPI.getKeyRatiosData(app) || []).filter(item => {
+                const period = app.normalizePeriod(item.mes, item.ano);
+                return !periodsToReplace.has(String(period));
+            });
+            newList = [...newList, ...(app.tempData || [])];
+            if (window.DataAPI && typeof DataAPI.setKeyRatiosData === 'function') {
+                DataAPI.setKeyRatiosData(app, newList);
+            } else {
+                app.keyRatiosData = newList;
+                if (app.saveToStorage) app.saveToStorage();
+            }
+            app.showToast(`${(app.tempData || []).length} Key Ratios salvos.`);
+            app.cancelImport();
+            app.switchTab('dre');
         }
     };
 })();

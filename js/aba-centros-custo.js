@@ -2,7 +2,7 @@
 // Módulo da aba Centros de Custo
 const AbaCentrosCusto = {
   render: function(containerId, contexto) {
-    // contexto: { centrosCusto, addCentroCusto, removeCentroCusto }
+    // contexto: { centrosCusto, addCentroCusto, removeCentroCusto, keyRatiosData }
     const centrosCusto = contexto.centrosCusto || [];
     const addCentroCusto = contexto.addCentroCusto;
     const removeCentroCusto = contexto.removeCentroCusto;
@@ -31,6 +31,8 @@ const AbaCentrosCusto = {
     function renderCentrosCustoList() {
       const tbody = document.getElementById('centros-custo-body');
       tbody.innerHTML = '';
+      // Exemplo de uso de keyRatiosData padronizado (caso necessário):
+      // const keyRatiosData = (window.DataAPI && typeof DataAPI.getKeyRatiosData === 'function') ? DataAPI.getKeyRatiosData(contexto) : (contexto.keyRatiosData || []);
       if (centrosCusto.length === 0) {
         const tr = document.createElement('tr');
         tr.innerHTML = `<td class="px-3 py-2 text-gray-500" colspan="7">Nenhum centro cadastrado.</td>`;

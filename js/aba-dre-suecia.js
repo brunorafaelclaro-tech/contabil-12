@@ -6,7 +6,7 @@ const AbaDreSuecia = {
     const S = {
       data: contexto.data || [],
       planoContas: contexto.planoContas || [],
-      keyRatiosData: contexto.keyRatiosData || [],
+      keyRatiosData: (window.DataAPI && typeof DataAPI.getKeyRatiosData === 'function') ? DataAPI.getKeyRatiosData(contexto) : (contexto.keyRatiosData || []),
       mgmtDetailData: contexto.mgmtDetailData || {},
       isAdmAllocationSueciaEnabled: contexto.isAdmAllocationSueciaEnabled,
       exemptCCs: contexto.exemptCCs || [],

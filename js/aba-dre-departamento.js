@@ -8,7 +8,7 @@ const AbaDreDepartamento = {
       const planoContas = contexto.planoContas || [];
       const mgmtFees = contexto.mgmtFees || [];
       const mgmtDetailData = contexto.mgmtDetailData || {};
-      const keyRatiosData = contexto.keyRatiosData || [];
+      const keyRatiosData = (window.DataAPI && typeof DataAPI.getKeyRatiosData === 'function') ? DataAPI.getKeyRatiosData(contexto) : (contexto.keyRatiosData || []);
       const balanceData = contexto.balanceData || [];
       const exemptCCs = contexto.exemptCCs || [];
       const dreDeptLayout = contexto.dreDeptLayout || [];

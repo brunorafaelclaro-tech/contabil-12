@@ -18,7 +18,7 @@ const AbaDre = {
 
     // Utilitários vindos do contexto
     const data = contexto.data || [];
-    const keyRatiosData = contexto.keyRatiosData || [];
+    const keyRatiosData = (window.DataAPI && typeof DataAPI.getKeyRatiosData === 'function') ? DataAPI.getKeyRatiosData(contexto) : (contexto.keyRatiosData || []);
     const exemptCCs = contexto.exemptCCs || [];
     const normalizeAccountDigits = contexto.normalizeAccountDigits;
     const getAdmAllocationForMonth = contexto.getAdmAllocationForMonth;

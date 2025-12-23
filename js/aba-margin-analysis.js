@@ -36,7 +36,7 @@ window.AbaMarginAnalysis = (function(){
                 tbody.innerHTML = '';
 
                 const data = ctx.data || [];
-                const keyRatiosData = ctx.keyRatiosData || [];
+                const keyRatiosData = (window.DataAPI && typeof DataAPI.getKeyRatiosData === 'function') ? DataAPI.getKeyRatiosData(ctx) : (ctx.keyRatiosData || []);
                 const exemptCCs = ctx.exemptCCs || [];
                 const isAdmAllocationEnabled = !!ctx.isAdmAllocationEnabled;
 

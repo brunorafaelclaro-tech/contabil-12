@@ -22,7 +22,7 @@ const AbaDreAcumulado = {
 
     // Mapeia contexto para variáveis locais (todas opcionais, com fallback)
     const data = contexto.data || [];
-    const keyRatiosData = contexto.keyRatiosData || [];
+    const keyRatiosData = (window.DataAPI && typeof DataAPI.getKeyRatiosData === 'function') ? DataAPI.getKeyRatiosData(contexto) : (contexto.keyRatiosData || []);
     const keyRatiosBudgetData = contexto.keyRatiosBudgetData || [];
     const mgmtFees = contexto.mgmtFees || [];
     const isAdmAllocationEnabled = !!contexto.isAdmAllocationEnabled;
