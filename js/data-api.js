@@ -230,6 +230,9 @@
                 try { app.renderBalanceData(); } catch(e) { console.warn('DataAPI.setBalanceData: render failed', e); }
             }
         }
+        ,getBalanceData(app) {
+            return (app && Array.isArray(app.balanceData)) ? app.balanceData : [];
+        }
     };
 
     window.DataAPI = DataAPI;

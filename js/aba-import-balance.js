@@ -189,13 +189,12 @@
                 const tbody = document.getElementById('balance-list-body');
                 if(!tbody) return;
                 tbody.innerHTML = '';
-
-                const sorted = [...(app.balanceData || [])].sort((a,b) => {
+                const list = (window.DataAPI && typeof DataAPI.getBalanceData === 'function') ? DataAPI.getBalanceData(app) : (app.balanceData || []);
+                const sorted = [...list].sort((a,b) => {
                     if (a.ano !== b.ano) return b.ano - a.ano;
                     if (a.mes !== b.mes) return b.mes - a.mes;
                     return String(a.contaReduzida).localeCompare(String(b.contaReduzida));
                 });
-
                 sorted.forEach(item => {
                     const tr = document.createElement('tr');
                     tr.className = 'hover:bg-gray-50';
@@ -217,8 +216,12 @@
         clearBalanceData(app) {
             try {
                 if (confirm("Tem certeza que deseja limpar todos os dados de Balanço e Pos EBIT?")) {
-                    app.balanceData = [];
-                    app.saveToStorage && app.saveToStorage();
+                    if (window.DataAPI && typeof DataAPI.setBalanceData === 'function') {
+                        DataAPI.setBalanceData(app, []);
+                    } else {
+                        app.balanceData = [];
+                        app.saveToStorage && app.saveToStorage();
+                    }
                     app.renderBalanceData && app.renderBalanceData();
                     app.showToast && app.showToast("Dados de Balanço limpos.");
                 }
@@ -227,12 +230,12 @@
 
         exportBalanceData(app) {
             try {
-                if (!app.balanceData || app.balanceData.length === 0) {
+                const list = (window.DataAPI && typeof DataAPI.getBalanceData === 'function') ? DataAPI.getBalanceData(app) : (app.balanceData || []);
+                if (!list || list.length === 0) {
                     app.showToast && app.showToast("Não há dados de Balanço para exportar.", true);
                     return;
                 }
-
-                const dataToExport = (app.balanceData || []).map(item => ({
+                const dataToExport = list.map(item => ({
                     "Mês": item.mes,
                     "Ano": item.ano,
                     "Conta Reduzida": item.contaReduzida,
@@ -241,7 +244,6 @@
                     "Conta OCRA": item.contaOCRA,
                     "Saldo Final": item.saldoFinal
                 }));
-
                 const ws = XLSX.utils.json_to_sheet(dataToExport);
                 const wb = XLSX.utils.book_new();
                 XLSX.utils.book_append_sheet(wb, ws, "Balanço e Pos EBIT");
