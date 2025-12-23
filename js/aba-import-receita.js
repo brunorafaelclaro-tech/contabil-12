@@ -3,6 +3,26 @@
 (function(){
     const mod = {};
 
+    mod.confirmReceitaImport = function(app) {
+        // Remove apenas registros do tipo Receita dos períodos importados
+        const periodsToReplace = new Set((app.tempData || []).map(item => app.normalizePeriod(item.mes, item.ano)));
+        let newList = (app.data || []).filter(item => {
+            if (item.tipo !== 'Receita') return true;
+            const period = app.normalizePeriod(item.mes, item.ano);
+            return !periodsToReplace.has(String(period));
+        });
+        newList = [...newList, ...(app.tempData || [])];
+        if (window.DataAPI && typeof DataAPI.importReceita === 'function') {
+            DataAPI.importReceita(app, newList, { persist: true, render: true });
+        } else {
+            app.data = newList;
+            if (app.saveToStorage) app.saveToStorage();
+            if (typeof app.renderData === 'function') app.renderData();
+        }
+        app.showToast(`${(app.tempData || []).length} registros de Receita salvos.`);
+        app.cancelImport();
+    };
+
     mod.render = function(containerId, contexto) {
         // placeholder de render não-destrutivo: o HTML de import já existe em index.html
         // Este módulo não substitui DOM; apenas expõe funções de processamento.
