@@ -326,7 +326,7 @@ const app = {
         23001, 11759
     ],
     outrasAdmAccounts: [2674, 2682, 2690],
-    // (grupo removido)
+    // HIST (arquivado): grupo removido — ver `docs/LEGADO_script_comments.md`
     outrasPosAccounts: [], 
     // CONTA 2844 CONSOLIDADA NO GRUPO PRINCIPAL PÓS-EBITDA
     posEbitdaAccounts: [
@@ -5378,7 +5378,7 @@ const app = {
         try { this.renderSavedImports(); this.renderSavedImportsInline(); } catch (e) { /* ignore */ }
     },
 
-    // (global saved imports dropdown removido)
+    // HIST (arquivado): dropdown de imports salvos removido da UI — ver `docs/LEGADO_script_comments.md`
 
     generateOcraReport() {
         // 1. Obter dados calculados do DRE Departamento
@@ -6466,7 +6466,7 @@ app.backupDataAndNotify = function() {
     }
 };
 
-    // (scaling do preview removido; import usa valores do arquivo)
+    // HIST (arquivado): scaling do preview removido; import usa valores do arquivo — ver `docs/LEGADO_script_comments.md`
 
 // Gera sugestões de mapeamento (sem aplicar) e retorna lista de sugestões
 app.generateAutoMapSuggestions = function() {
