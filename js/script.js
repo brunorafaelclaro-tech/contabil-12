@@ -1,16 +1,7 @@
-// Use localStorage para persistência de dados localmente (sem necessidade de Firestore)
-// Esta versão tenta usar window.electron.readJSON/saveJSON (exposto pelo preload.js em Electron).
-// Se não disponível, faz fallback para localStorage.
 
-// LEGACY SAFEGUARD: desativa o bloco DRE legado em `js/script.js`.
-// As renderizações de DRE agora são feitas por módulos em `js/aba-dre.js` e
-// `js/aba-dre-acumulado.js`. Mantivemos o código legado como backup em
-// `js/script.js.bak` criado automaticamente. Para reativar o legado, remova
-// a linha abaixo ou restaure o backup.
-const LEGACY_DRE_DISABLED = true;
+// Helpers, filtros e renderizações DRE agora são feitos exclusivamente por módulos dedicados (aba-dre.js, aba-dre-acumulado.js, aba-dre-budget-2.js, etc) e AppUtils.
+// Código legado removido para manter o script.js enxuto e seguro.
 
-
-// Todos os helpers de filtro e normalização agora estão em window.AppUtils (js/app-utils.js)
 
 
 const app = {
@@ -80,65 +71,6 @@ const app = {
             'margin-filter-cc',
             'margin-filter-dept',
             'margin-filter-client',
-            'margin-filter-sbd',
-            'margin-filter-proj'
-        ];
-        ids.forEach(id => {
-            const el = document.getElementById(id);
-            if (el) {
-                el.value = 'Todos...';
-                el.dispatchEvent(new Event('change', { bubbles: true }));
-            }
-        });
-        this.applyFilterDependencies('margin', true);
-        this.renderMarginAnalysis();
-    },
-    data: [],
-    centrosCusto: [], // Lista de centros de custo (Project ID mapping)
-    planoContas: [], 
-    balanceData: [], // Dados de Balanço e Pos EBIT
-    locks: [], 
-    mgmtFees: [], 
-    mgmtDetailData: {}, // Dados detalhados de Management Fee (Ocra/Calc)
-    _mgmtSaveTimer: null,
-    ocraConfig: [], // Configuração de Cadastro OCRA (Lista de objetos)
-    exemptCCs: [], 
-    // keyRatiosData: [], // Substituído por DataAPI.getKeyRatiosData/app.keyRatiosData
-        keyRatiosBudgetData: [],
-        // Configurável: contas do Budget que devem sempre ser tratadas como RECEITA (forçar classificação)
-        budgetRevenueAccounts: [],
-        // Contas permitidas como receita quando departamento === 'ADM'
-        admRevenueAllowedAccounts: ['1899','1902','1945','1953','1961','3204','3212'],
-    tempData: [], 
-    currentImportType: 'KeyRatios', 
-    currentDREExportData: [], 
-    currentDREAcumuladoExportData: [],
-    marginExclusionFilter: [], 
-    isAdmAllocationEnabled: false, // Estado do botão de rateio ADM
-    isAdmAllocationSueciaEnabled: false, // Estado do botão de rateio ADM Suécia
-
-    // Layout do DRE Departamento
-    dreDeptLayout: [
-        { type: 'account', code: '3010', description: 'Consultant fees external' },
-        { type: 'account', code: '3556', description: 'Consultant fees within own Business Area' },
-        { type: 'account', code: '3557', description: 'Consultant fees to other Business Area' },
-        { type: 'account', code: '3015', description: 'Write- up/down of fees' },
-        { type: 'account', code: '3095', description: 'Provision not invoiced WIP' },
-        { type: 'account', code: '3019', description: 'Fee other dep. within same comp.' },
-        { type: 'account', code: '3018', description: 'Costs other dep. within same comp.' },
-        { type: 'account', code: '3030', description: 'Subcontractor fees' },
-        { type: 'account', code: '3204', description: 'Tax on revenue (Dynamic)' },
-        { type: 'total', description: 'Total Revenue', bg: 'bg-yellow-100', id: 'total_revenue' },
-        { type: 'account', code: '3413', description: 'Computers within projects' },
-        { type: 'account', code: '3040', description: 'Travel expenses, outlay' },
-        { type: 'account', code: '3050', description: 'Recharged expenses' },
-        { type: 'account', code: '3110', description: 'Training' },
-        { type: 'account', code: '3521', description: 'Sales of computers' },
-        { type: 'account', code: '3910', description: 'Rents' },
-        { type: 'account', code: '3510', description: 'Machinery fees' },
-        { type: 'account', code: '32101', description: 'Licences' },
-        { type: 'account', code: '3960', description: 'Exchange profit from business' },
-        { type: 'account', code: '3973', description: 'Capital gains on fixed assets' },
         { type: 'account', code: '3900', description: 'Other income' },
         { type: 'total', description: 'Total Other Income', bg: 'bg-yellow-100', id: 'total_other_income' },
         { type: 'calculation', description: 'TOTAL INCOME', bg: 'bg-green-100', formula: 'total_revenue + total_other_income', id: 'total_income' },
