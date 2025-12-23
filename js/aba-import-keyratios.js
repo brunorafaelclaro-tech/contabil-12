@@ -136,7 +136,7 @@
                 if (isNaN(mesNum) || isNaN(anoNum) || mesNum < 1 || mesNum > 12) continue;
 
                 // valor pode vir como string com pt-br
-                const valorNum = app.parseLocaleNumber ? app.parseLocaleNumber(String(rawValor || '').trim()) : (Number(rawValor)||0);
+                const valorNum = AppUtils.parseLocaleNumber ? AppUtils.parseLocaleNumber(String(rawValor || '').trim()) : (Number(rawValor)||0);
 
                 // Mapear contagens/nomes por conta (7001,7002,7004)
                 const accDigits = app.normalizeAccountDigits ? app.normalizeAccountDigits(String(rawConta)) : String(rawConta);

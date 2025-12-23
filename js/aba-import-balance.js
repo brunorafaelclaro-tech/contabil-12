@@ -15,7 +15,7 @@
                         const rawValor = String(r[3] || '');
                         let numOk = false;
                         try {
-                            const num = (app.parseLocaleNumber ? app.parseLocaleNumber(rawValor) : (window.AppUtils && AppUtils.parseLocaleNumber ? AppUtils.parseLocaleNumber(rawValor) : parseLocaleNumber(rawValor)));
+                            const num = (AppUtils.parseLocaleNumber ? AppUtils.parseLocaleNumber(rawValor) : parseLocaleNumber(rawValor));
                             numOk = !isNaN(Number(num));
                         } catch(e) { numOk = false; }
                         // check month and year columns
@@ -61,7 +61,7 @@
 
                         // valor should be parseable as number
                         try {
-                            const num = (app.parseLocaleNumber ? app.parseLocaleNumber(String(cValor||'')) : (window.AppUtils && AppUtils.parseLocaleNumber ? AppUtils.parseLocaleNumber(String(cValor||'')) : parseLocaleNumber(String(cValor||''))));
+                            const num = (AppUtils.parseLocaleNumber ? AppUtils.parseLocaleNumber(String(cValor||'')) : parseLocaleNumber(String(cValor||'')));
                             if (!isNaN(Number(num))) score += 2;
                         } catch(e) {}
 
@@ -127,7 +127,7 @@
                 const c6 = 6 + offset;
 
                 const parseLocale = (v) => {
-                    try { return (app.parseLocaleNumber ? app.parseLocaleNumber(String(v || '')) : (window.AppUtils && AppUtils.parseLocaleNumber ? AppUtils.parseLocaleNumber(String(v || '')) : parseLocaleNumber(String(v || '')))); } catch(e) { return Number(String(v || '').replace(/[^0-9\-,.]/g, '')) || 0; }
+                    try { return (AppUtils.parseLocaleNumber ? AppUtils.parseLocaleNumber(String(v || '')) : parseLocaleNumber(String(v || ''))); } catch(e) { return Number(String(v || '').replace(/[^0-9\-,.]/g, '')) || 0; }
                 };
 
                 let item = { id: Date.now() + Math.random(), _rawRow: row };
@@ -259,7 +259,7 @@
                 const rows = app.tempRawDataRows;
                 app.tempData = [];
                 const parseLocale = (v) => {
-                    try { return (app.parseLocaleNumber ? app.parseLocaleNumber(String(v || '')) : (window.AppUtils && AppUtils.parseLocaleNumber ? AppUtils.parseLocaleNumber(String(v || '')) : parseLocaleNumber(String(v || '')))); } catch(e) { return Number(String(v || '').replace(/[^0-9\-,.]/g, '')) || 0; }
+                    try { return (AppUtils.parseLocaleNumber ? AppUtils.parseLocaleNumber(String(v || '')) : parseLocaleNumber(String(v || ''))); } catch(e) { return Number(String(v || '').replace(/[^0-9\-,.]/g, '')) || 0; }
                 };
                 for (let i = 0; i < rows.length; i++) {
                     const row = rows[i]; if (!row) continue;

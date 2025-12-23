@@ -63,7 +63,7 @@
 
             const rawCell = row[2];
             const rawStr = rawCell === undefined || rawCell === null ? '' : String(rawCell).trim();
-            const valorNum = app.parseLocaleNumber(rawStr);
+            const valorNum = AppUtils.parseLocaleNumber(rawStr);
 
             let centroCusto = row[3] !== undefined ? String(row[3]).trim() : '';
             let departamento = row[4] !== undefined ? String(row[4]).trim() : '';

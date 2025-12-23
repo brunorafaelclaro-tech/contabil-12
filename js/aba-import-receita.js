@@ -75,7 +75,7 @@
                 const mesRaw = row[4];
                 const anoRaw = row[5];
 
-                const valorNum = app.parseLocaleNumber(rawValor) || 0;
+                const valorNum = AppUtils.parseLocaleNumber(rawValor) || 0;
                 const mes = Number(mesRaw);
                 const ano = Number(anoRaw);
                 const lockKey = `${mes}-${ano}`;
@@ -151,7 +151,7 @@
                 conta: row[0],
                 contaOCRA: row[11],
                 descricao: row[3],
-                valor: app.parseLocaleNumber(String(row[4] || '')) || 0,
+                valor: AppUtils.parseLocaleNumber(String(row[4] || '')) || 0,
                 centroCusto: row[7],
                 departamento: row[8],
                 cliente: cleanCliente,

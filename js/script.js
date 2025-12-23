@@ -758,7 +758,7 @@ const app = {
         }
 
         // Se mês for texto (Jan/Fev) tenta converter
-        const parsed = parseMonthString(m);
+        const parsed = AppUtils.parseMonthString(m);
         if (parsed !== null) {
             m = parsed;
         } else {
@@ -3280,10 +3280,7 @@ const app = {
         );
     },
 
-    filterMatches(itemValue, filterString) {
-        // Wrapper: chama AppUtils.filterMatches
-        return window.AppUtils.filterMatches(itemValue, filterString);
-    },
+    // ...existing code...
 
     // Calcula a alocação proporcional do Management Fee (9999) para um mês/ano específico 
     // com base nas horas de consultores que atendem aos filtros.
