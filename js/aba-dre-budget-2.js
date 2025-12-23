@@ -2,6 +2,27 @@
 // Módulo da aba DRE Budget-2
 const AbaDreBudget2 = {
   render: function(containerId, contexto) {
+        // Repopula datalists de filtros com todos os valores únicos do dataset base
+        function repopulateDREB2FilterDatalists(data) {
+          const map = {
+            'dre-b2-cc': 'centroCusto',
+            'dre-b2-dept': 'departamento',
+            'dre-b2-client': 'cliente',
+            'dre-b2-sbd': 'sbd',
+            'dre-b2-proj': 'projectType'
+          };
+          Object.entries(map).forEach(([inputId, field]) => {
+            const input = document.getElementById(inputId);
+            const listId = input && input.getAttribute('list');
+            const dl = listId && document.getElementById(listId);
+            if (dl) {
+              const values = Array.from(new Set(data.map(item => String(item[field] || '').trim()).filter(v => v)));
+              values.sort((a, b) => a.localeCompare(b, 'pt-BR'));
+              dl.innerHTML = values.map(v => `<option value=\"${v}\">`).join('');
+            }
+          });
+        }
+        repopulateDREB2FilterDatalists(contexto.data || []);
     // contexto: { year, filtros: { cc, dept, client, sbd, proj }, data, keyRatiosBudgetData, exemptCCs, isAdmAllocationEnabled, viagensAccounts, custoAccounts, pessoalAccounts, aluguelAccounts, servicosProfissionaisAccounts, taxasAccounts, diversasAccounts, outrasAdmAccounts, depreciacaoAccounts, posEbitdaAccounts, managementFeeAccounts, deductionAccounts, normalizeAccountDigits, getAdmAllocationForMonth }
     const year = Number(contexto.year) || (new Date()).getFullYear();
     const filtros = contexto.filtros || {};

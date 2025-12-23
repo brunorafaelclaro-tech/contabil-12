@@ -9,77 +9,90 @@
 // a linha abaixo ou restaure o backup.
 const LEGACY_DRE_DISABLED = true;
 
-// Helper: converte abreviações de mês (pt) em número (Jan->1, Fev->2, ...)
-function parseMonthString(raw) {
-    if (window.AppUtils && typeof window.AppUtils.parseMonthString === 'function') {
-        return window.AppUtils.parseMonthString(raw);
-    }
-    return null;
-}
+
+// Todos os helpers de filtro e normalização agora estão em window.AppUtils (js/app-utils.js)
+
 
 const app = {
-            // Limpa todos os filtros da aba DRE
-            clearDREFilters() {
-                const ids = [
-                    'dre-filter-cc',
-                    'dre-filter-dept',
-                    'dre-filter-client',
-                    'dre-filter-sbd',
-                    'dre-filter-proj'
-                ];
-                ids.forEach(id => {
-                    const el = document.getElementById(id);
-                    if (el) el.value = '';
-                });
-                this.renderDRE();
-            },
 
-            // Limpa todos os filtros da aba DRE Acumulado
-            clearDREAcumuladoFilters() {
-                const ids = [
-                    'dre-acc-cc',
-                    'dre-acc-dept',
-                    'dre-acc-client',
-                    'dre-acc-sbd',
-                    'dre-acc-proj'
-                ];
-                ids.forEach(id => {
-                    const el = document.getElementById(id);
-                    if (el) el.value = '';
-                });
-                this.renderDREAcumulado();
-            },
+    // Limpa todos os filtros da aba DRE
+    clearDREFilters() {
+        const ids = [
+            'dre-filter-cc',
+            'dre-filter-dept',
+            'dre-filter-client',
+            'dre-filter-sbd',
+            'dre-filter-proj'
+        ];
+        ids.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.value = '';
+                el.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+        });
+        this.applyFilterDependencies('dre', true);
+        this.renderDRE();
+    },
+
+    // Limpa todos os filtros da aba DRE Acumulado
+    clearDREAcumuladoFilters() {
+        const ids = [
+            'dre-acc-cc',
+            'dre-acc-dept',
+            'dre-acc-client',
+            'dre-acc-sbd',
+            'dre-acc-proj'
+        ];
+        ids.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.value = '';
+                el.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+        });
+        this.applyFilterDependencies('dre-acc', true);
+        this.renderDREAcumulado();
+    },
 
             // Limpa todos os filtros da aba DRE Budget-2
-            clearDREBudget2Filters() {
-                const ids = [
-                    'dre-b2-cc',
-                    'dre-b2-dept',
-                    'dre-b2-client',
-                    'dre-b2-sbd',
-                    'dre-b2-proj'
-                ];
-                ids.forEach(id => {
-                    const el = document.getElementById(id);
-                    if (el) el.value = '';
-                });
-                this.renderDREBudget2();
-            },
+    clearDREBudget2Filters() {
+        const ids = [
+            'dre-b2-cc',
+            'dre-b2-dept',
+            'dre-b2-client',
+            'dre-b2-sbd',
+            'dre-b2-proj'
+        ];
+        ids.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.value = '';
+                el.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+        });
+        this.applyFilterDependencies('dre-b2', true);
+        this.renderDREBudget2();
+    },
         // Limpa todos os filtros da aba Margem
-        clearMarginFilters() {
-            const ids = [
-                'margin-filter-cc',
-                'margin-filter-dept',
-                'margin-filter-client',
-                'margin-filter-sbd',
-                'margin-filter-proj'
-            ];
-            ids.forEach(id => {
-                const el = document.getElementById(id);
-                if (el) el.value = '';
-            });
-            this.renderMarginAnalysis();
-        },
+    clearMarginFilters() {
+        const ids = [
+            'margin-filter-cc',
+            'margin-filter-dept',
+            'margin-filter-client',
+            'margin-filter-sbd',
+            'margin-filter-proj'
+        ];
+        ids.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.value = 'Todos...';
+                el.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+        });
+        this.applyFilterDependencies('margin', true);
+        this.renderMarginAnalysis();
+    },
     data: [],
     centrosCusto: [], // Lista de centros de custo (Project ID mapping)
     planoContas: [], 
@@ -656,17 +669,17 @@ const app = {
         if (!Array.isArray(samples)) samples = [samples];
         const results = samples.map(code => {
             const budgetAcc = String(code || '').trim();
-            const targetNorm = this.normalizeAccountString(budgetAcc);
-            const targetDigits = this.normalizeAccountDigits(budgetAcc);
+            const targetNorm = window.AppUtils.normalizeAccountString(budgetAcc);
+            const targetDigits = window.AppUtils.normalizeAccountDigits(budgetAcc);
             let pc = null;
             if (this.planoContas && this.planoContas.length > 0) {
-                pc = this.planoContas.find(p => this.normalizeAccountString(p.contaBudget || '') === targetNorm);
-                if (!pc) pc = this.planoContas.find(p => this.normalizeAccountString(p.contaReduzida || '') === targetNorm || this.normalizeAccountString(p.contaGrande || '') === targetNorm);
+                pc = this.planoContas.find(p => window.AppUtils.normalizeAccountString(p.contaBudget || '') === targetNorm);
+                if (!pc) pc = this.planoContas.find(p => window.AppUtils.normalizeAccountString(p.contaReduzida || '') === targetNorm || window.AppUtils.normalizeAccountString(p.contaGrande || '') === targetNorm);
                 if (!pc && targetDigits) {
                     pc = this.planoContas.find(p => {
-                        const pb = this.normalizeAccountDigits(p.contaBudget || '');
-                        const pr = this.normalizeAccountDigits(p.contaReduzida || '');
-                        const pg = this.normalizeAccountDigits(p.contaGrande || '');
+                        const pb = window.AppUtils.normalizeAccountDigits(p.contaBudget || '');
+                        const pr = window.AppUtils.normalizeAccountDigits(p.contaReduzida || '');
+                        const pg = window.AppUtils.normalizeAccountDigits(p.contaGrande || '');
                         return (pb && pb === targetDigits) || (pr && pr === targetDigits) || (pg && pg === targetDigits);
                     });
                 }
@@ -697,7 +710,7 @@ const app = {
                 header.style.justifyContent = 'space-between';
                 header.style.alignItems = 'center';
                 const title = document.createElement('strong');
-                title.innerText = `Budget Debug ${y}${deptFilter ? ' - ' + deptFilter : ''}`;
+                title.innerText = `Budget Debug`;
                 const closeBtn = document.createElement('button');
                 closeBtn.innerText = '×';
                 closeBtn.style.border = 'none';
@@ -728,29 +741,8 @@ const app = {
         return results;
     },
 
-    parseLocaleNumber(value) {
-        if (window.AppUtils && typeof window.AppUtils.parseLocaleNumber === 'function') {
-            return window.AppUtils.parseLocaleNumber(value);
-        }
-        return 0;
-    },
 
-    normalizeAccountString(s) {
-        if (window.AppUtils && typeof window.AppUtils.normalizeAccountString === 'function') {
-            return window.AppUtils.normalizeAccountString(s);
-        }
-        if (s === undefined || s === null) return '';
-        return String(s).toUpperCase().replace(/[^A-Z0-9]/g, '');
-    },
-
-    normalizeAccountDigits(s) {
-        if (window.AppUtils && typeof window.AppUtils.normalizeAccountDigits === 'function') {
-            return window.AppUtils.normalizeAccountDigits(s);
-        }
-        if (s === undefined || s === null) return '';
-        const digits = String(s).replace(/\D/g, '');
-        return digits.replace(/^0+/, '') || digits;
-    },
+    // Todos os helpers de filtro e normalização agora estão em window.AppUtils (js/app-utils.js)
 
     normalizePeriod(mes, ano) {
         // Retorna chave normalizada 'M-Y' onde M e Y são números (ex: '1-2025')
@@ -1193,7 +1185,7 @@ const app = {
                     isAdmAllocationEnabled: this.isAdmAllocationEnabled,
                     isAdmAllocationSueciaEnabled: this.isAdmAllocationSueciaEnabled,
                     dreDeptLayout: this.dreDeptLayout || [],
-                    normalizeAccountDigits: this.normalizeAccountDigits ? this.normalizeAccountDigits.bind(this) : null,
+                    normalizeAccountDigits: AppUtils.normalizeAccountDigits,
                     getLastMonthHeads: this.getLastMonthHeads ? this.getLastMonthHeads.bind(this) : null
                 };
                 // delegador silencioso: chama AbaDreDepartamento sem logs
@@ -2572,7 +2564,7 @@ const app = {
             }
 
             // DRE Departamento: aplica as mesmas exclusões do renderDREDepartamento
-            const contaNum = Number(this.normalizeAccountDigits(item.conta));
+            const contaNum = Number(AppUtils.normalizeAccountDigits(item.conta));
             if (ocra && ocra !== '3204' && contaNum !== 3204 && ocra !== '6430' && contaNum !== 6430 && !ignoredAccounts.includes(String(contaNum))) {
                 if (accounts.includes(ocra)) result[ocra].departamento += valor;
             }
@@ -3262,153 +3254,35 @@ const app = {
     },
 
     setupDynamicFilters() {
+        // Wrapper: chama AppUtils.setupDynamicFilters com contexto e targets
         const targets = [
-            // DRE Mensal
             { prefix: 'dre', fields: ['cc', 'dept', 'client', 'sbd', 'proj'], suffix: '-filter-', render: this.renderDRE },
-            // DRE Mensal Budget (mesma estrutura, view distinta)
-            // DRE Mensal Budget removido; Budget-2 remains
-            // DRE Mensal Budget-2 (layout Acumulado, mensal)
             { prefix: 'dre-b2', fields: ['cc', 'dept', 'client', 'sbd', 'proj'], suffix: '-', render: this.renderDREBudget2 },
-            // DRE Acumulada
             { prefix: 'dre-acc', fields: ['cc', 'dept', 'client', 'sbd', 'proj'], suffix: '-', render: this.renderDREAcumulado },
-            // Margin Analysis
             { prefix: 'margin', fields: ['cc', 'dept', 'client', 'sbd', 'proj'], suffix: '-filter-', render: this.renderMarginAnalysis }
         ];
-        
-        // Fields que não acionam render/reaplicação dos filtros (ex: ano, mês, agrupamento)
-        const nonTriggerFields = ['year-select', 'year', 'month', 'group-by'];
-
-        targets.forEach(({ prefix, fields, suffix, render }) => {
-            [...fields, ...nonTriggerFields.filter(f => document.getElementById(`${prefix}${suffix}${f}` || `${prefix}-${f}` ))]
-            .forEach(field => {
-                let elementId;
-                if (nonTriggerFields.includes(field)) {
-                    elementId = `${prefix}-${field.replace('-select', '')}`; // Year/Month
-                } else {
-                    elementId = `${prefix}${suffix}${field}`; // cc, dept, client, sbd, proj
-                }
-                
-                const element = document.getElementById(elementId);
-
-                if (element) {
-                    const isFilterField = fields.includes(field); // Apenas filtros de dimensão ativam a dependência
-                    const isReportRenderTrigger = isFilterField || field.includes('year') || field.includes('month');
-
-                    const handler = () => {
-                        if(isFilterField) {
-                            this.applyFilterDependencies(prefix); 
-                        }
-                        if (isReportRenderTrigger) { 
-                            render.call(this);
-                        }
-                    };
-                    
-                    element.removeEventListener('change', element._dynamicFilterHandler);
-                    element._dynamicFilterHandler = handler;
-                    element.addEventListener('change', handler);
-                }
-            });
-            
-            // Handle initial population after everything is set up
-            this.applyFilterDependencies(prefix);
-        });
+        return window.AppUtils.setupDynamicFilters(
+            this,
+            targets,
+            (prefix) => this.applyFilterDependencies(prefix)
+        );
     },
 
-    applyFilterDependencies(prefix) {
-        const suffixMap = {
-            'dre': '-filter-',
-            'dre-b2': '-',
-            'margin': '-filter-',
-            'dre-acc': '-', 
-        };
-        const inputSuffix = suffixMap[prefix];
-        const fields = ['cc', 'dept', 'client', 'sbd', 'proj']; // Input ID suffixes
-
-        // 1. Get current filter values
-        const filterValues = {};
-        fields.forEach(f => {
-            const id = `${prefix}${inputSuffix}${f}`;
-            const element = document.getElementById(id);
-            filterValues[f] = element ? String(element.value).trim() : '';
-            if (filterValues[f] === 'Todos...') filterValues[f] = '';
-        });
-        
-        // Handle Year for filtering (Year is always mandatory for filtering data)
-        const yearElement = document.getElementById(`${prefix}-year-select`) || document.getElementById(`${prefix}-year`);
-        const currentYear = yearElement ? parseInt(yearElement.value) : null;
-        if (!currentYear) return; 
-
-        // 2. Combine and filter data (data + keyRatiosData)
-        let filteredData = [];
-
-        // If prefix is 'dre', respect the DRE type selector (Actual / Budget / Both)
-        if (prefix === 'dre') {
-            const dreTypeEl = document.getElementById('dre-type-select');
-            const dreType = (dreTypeEl && dreTypeEl.value) ? dreTypeEl.value : 'Actual';
-            if (dreType === 'Budget') filteredData = this.data.filter(d => d.tipo === 'Budget');
-            else if (dreType === 'Actual') filteredData = this.data.filter(d => d.tipo !== 'Budget');
-            else filteredData = [...this.data];
-            // include keyRatios so that datalists (cc/dept/client/proj) consider key ratios too
-            filteredData = [...filteredData, ...this.keyRatiosData];
-        } else {
-            filteredData = [...this.data, ...this.keyRatiosData];
-        }
-
-        // Filter by Year first
-        filteredData = filteredData.filter(d => parseInt(d.ano) === currentYear);
-
-        // Apply ALL active filters
-        let currentFilterState = {};
-        const filterKeys = ['centroCusto', 'departamento', 'cliente', 'sbd', 'projectType'];
-        filterKeys.forEach((key, i) => {
-            const f = fields[i]; // f is 'cc', 'dept', 'client', 'sbd', 'proj'
-            currentFilterState[key] = filterValues[f];
-            
-            if (currentFilterState[key]) {
-                 filteredData = filteredData.filter(d => this.filterMatches(d[key], currentFilterState[key]));
-            }
-        });
-
-        // 3. Update Datalists for ALL filters based on the *remaining* filteredData
-        filterKeys.forEach(field => {
-            const uniqueValues = [...new Set(filteredData.map(d => String(d[field] || '').trim()).filter(x => x))].sort();
-            
-            // Mapeamento dos nomes das propriedades de dados para os sufixos de ID do datalist.
-            const filterAbbr = 
-                field === 'centroCusto' ? 'cc' : 
-                field === 'departamento' ? 'dept' : 
-                field === 'cliente' ? 'client' : 
-                field === 'projectType' ? 'proj' : 
-                field;
-
-            let datalistId = `dl-${filterAbbr}`;
-            if (prefix === 'dre-acc') datalistId += '-acc';
-            else if (prefix === 'margin') datalistId += '-margin';
-            else if (prefix === 'dre-b2') datalistId += '-b2';
-            
-            // Ensure the currently selected value is still an option (if not empty)
-            const currentValue = currentFilterState[field];
-            if (currentValue && !uniqueValues.includes(currentValue) && currentValue !== 'Todos...') {
-                 uniqueValues.unshift(currentValue);
-            }
-
-            this.updateDatalist(datalistId, uniqueValues);
-        });
+    applyFilterDependencies(prefix, forceShowAll) {
+        // Wrapper: chama AppUtils.applyFilterDependencies
+        return window.AppUtils.applyFilterDependencies(
+            this,
+            prefix,
+            this.data,
+            this.keyRatiosData,
+            (datalistId, values) => this.updateDatalist(datalistId, values),
+            !!forceShowAll
+        );
     },
 
     filterMatches(itemValue, filterString) {
-        if (!filterString || filterString.toLowerCase() === 'todos...' || filterString.trim() === '') {
-            return true;
-        }
-        
-        const filterValues = filterString.split(',')
-                                         .map(v => String(v).trim())
-                                         .filter(v => v !== '');
-
-        if (filterValues.length === 0) return true;
-
-        const itemStr = String(itemValue || '').trim();
-        return filterValues.some(filterV => itemStr === filterV);
+        // Wrapper: chama AppUtils.filterMatches
+        return window.AppUtils.filterMatches(itemValue, filterString);
     },
 
     // Calcula a alocação proporcional do Management Fee (9999) para um mês/ano específico 
@@ -3637,9 +3511,9 @@ const app = {
         // Diagnostic: show any entries that normalize to conta 1899 and whether they would be included
         try {
             const candidates = this.data.filter(it => {
-                const cd = this.normalizeAccountDigits(it.conta);
+                const cd = AppUtils.normalizeAccountDigits(it.conta);
                 return cd === '1899';
-            }).slice(0,50).map(it => ({conta: it.conta, contaDigits: this.normalizeAccountDigits(it.conta), tipo: it.tipo, mes: it.mes, ano: it.ano, centroCusto: it.centroCusto, valor: it.valor}));
+            }).slice(0,50).map(it => ({conta: it.conta, contaDigits: AppUtils.normalizeAccountDigits(it.conta), tipo: it.tipo, mes: it.mes, ano: it.ano, centroCusto: it.centroCusto, valor: it.valor}));
             try { console.log('DREBudget diagnostic - 1899 candidates (sample): ' + JSON.stringify(candidates)); } catch(e) { console.log('DREBudget diagnostic - 1899 candidates (sample):', candidates); }
         } catch (e) {}
 
@@ -3680,7 +3554,7 @@ const app = {
             if (m < 0 || m > 11) return;
             
             // Normaliza a conta para extrair dígitos quando possível (ex.: '3.010' ou '3010 ')
-            const contaDigits = this.normalizeAccountDigits(item.conta);
+            const contaDigits = AppUtils.normalizeAccountDigits(item.conta);
             const contaNum = (contaDigits && !isNaN(Number(contaDigits))) ? Number(contaDigits) : (isFinite(Number(item.conta)) ? Number(item.conta) : NaN);
             const key = `${item.conta || ''} - ${item.descricao || ''}`;
             
@@ -4310,7 +4184,7 @@ const app = {
                         budgetRevenueAccounts: this.budgetRevenueAccounts || [],
                         budgetExcludedFromRevenue: this.budgetExcludedFromRevenue || [],
                         managementFeeAccounts: this.managementFeeAccounts || [],
-                        normalizeAccountDigits: this.normalizeAccountDigits ? this.normalizeAccountDigits.bind(this) : null,
+                        normalizeAccountDigits: AppUtils.normalizeAccountDigits,
                         getAdmAllocationForMonth: this.getAdmAllocationForMonth ? this.getAdmAllocationForMonth.bind(this) : null,
                         getMgmtFeeAllocationForMonth: this.getMgmtFeeAllocationForMonth ? this.getMgmtFeeAllocationForMonth.bind(this) : null,
                         calculateKeyRatios: this.calculateKeyRatios ? this.calculateKeyRatios.bind(this) : (this.calculateKeyRatiosMonthly ? this.calculateKeyRatiosMonthly.bind(this) : null),
@@ -4972,7 +4846,7 @@ const app = {
         table.appendChild(thead);
         const tbody = document.createElement('tbody');
         res.accounts.slice(0,200).forEach(row => {
-            const accNorm = this.normalizeAccountDigits(row.conta || '') || String(row.conta || '');
+            const accNorm = AppUtils.normalizeAccountDigits(row.conta || '') || String(row.conta || '');
             const isExcluded = (this.budgetExcludedFromRevenue || []).some(b => String(b) === String(accNorm) || String(b) === String(row.conta));
             const btnLabel = isExcluded ? 'Remover marcação' : 'Marcar como NÃO Receita';
             const btnStyle = isExcluded ? 'padding:6px 8px;background:#6b7280;color:white;border-radius:6px;border:none;cursor:pointer' : 'padding:6px 8px;background:#ef4444;color:white;border-radius:6px;border:none;cursor:pointer';
@@ -4990,7 +4864,7 @@ const app = {
                 const acc = btn.getAttribute('data-acc');
                 if (!acc) return;
                 // Toggle exclusion
-                const accDigits = this.normalizeAccountDigits(acc) || String(acc);
+                const accDigits = AppUtils.normalizeAccountDigits(acc) || String(acc);
                 this.budgetExcludedFromRevenue = this.budgetExcludedFromRevenue || [];
                 const idx = this.budgetExcludedFromRevenue.findIndex(b => String(b) === String(accDigits) || String(b) === String(acc));
                 if (idx === -1) {
@@ -5053,7 +4927,7 @@ const app = {
         if (descLikeTotal.test(String(conta))) return this.showToast('Não é permitido marcar linhas agregadas/"Total" como receita.', true);
 
         // Require at least some digits in the account identifier
-        const accDigits = this.normalizeAccountDigits(conta || '');
+        const accDigits = AppUtils.normalizeAccountDigits(conta || '');
         if (!accDigits) return this.showToast('Esta linha não contém uma conta numérica válida e não pode ser marcada como receita.', true);
 
         this.budgetRevenueAccounts = this.budgetRevenueAccounts || [];
@@ -5076,7 +4950,7 @@ const app = {
         const added = [];
         list.forEach(acc => {
             const s = String(acc || '').trim();
-            const digits = this.normalizeAccountDigits(s) || s;
+            const digits = AppUtils.normalizeAccountDigits(s) || s;
             if (!digits) return;
             if (!this.budgetExcludedFromRevenue.some(b => String(b) === String(digits))) {
                 this.budgetExcludedFromRevenue.push(digits);
@@ -5096,7 +4970,7 @@ const app = {
     // Helpers para gerenciar contas permitidas de receita em ADM
     isAdmRevenueAllowed(conta) {
         if (!conta) return false;
-        const d = this.normalizeAccountDigits(conta);
+        const d = AppUtils.normalizeAccountDigits(conta);
         return (this.admRevenueAllowedAccounts || []).some(a => String(a) === String(d) || String(a) === String(conta));
     },
 

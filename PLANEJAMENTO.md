@@ -32,8 +32,9 @@
   - ~~Padronizar `keyRatiosData` e `keyRatiosBudgetData` via `DataAPI`.~~
   - **Status:** Concluído. Módulo `aba-import-keyratios.js` padronizado, integração com DataAPI validada, testes manuais realizados e push será efetuado.
 
-- Dia 6 — Extrair renderers DRE pesados (3–4 h)
+- ~~Dia 6 — Extrair renderers DRE pesados (3–4 h)~~ ✅
   - Mover DRE/DRE Acumulado/Budget para módulos específicos e delegar a `script.js`.
+  - **Status:** Concluído. Renderizadores DRE, DRE Acumulado e DRE Budget-2 extraídos para módulos, delegação em script.js validada, filtros funcionando perfeitamente.
 
 - Dia 7 — Filtros e helpers UI (3–4 h)
   - Mover `setupDynamicFilters`, `populateFilters` e utilitários para `js/app-utils.js`.

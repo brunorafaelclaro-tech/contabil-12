@@ -1,6 +1,27 @@
 // Módulo da aba DRE Acumulado
 const AbaDreAcumulado = {
   render: function(containerId, contexto) {
+        // Repopula datalists de filtros com todos os valores únicos do dataset base
+        function repopulateDREAccFilterDatalists(data) {
+          const map = {
+            'dre-acc-cc': 'centroCusto',
+            'dre-acc-dept': 'departamento',
+            'dre-acc-client': 'cliente',
+            'dre-acc-sbd': 'sbd',
+            'dre-acc-proj': 'projectType'
+          };
+          Object.entries(map).forEach(([inputId, field]) => {
+            const input = document.getElementById(inputId);
+            const listId = input && input.getAttribute('list');
+            const dl = listId && document.getElementById(listId);
+            if (dl) {
+              const values = Array.from(new Set(data.map(item => String(item[field] || '').trim()).filter(v => v)));
+              values.sort((a, b) => a.localeCompare(b, 'pt-BR'));
+              dl.innerHTML = values.map(v => `<option value=\"${v}\">`).join('');
+            }
+          });
+        }
+        repopulateDREAccFilterDatalists(contexto.data || []);
     // invocation without debug logging
     const safeCtx = contexto || {};
 

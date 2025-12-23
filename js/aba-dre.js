@@ -1,6 +1,28 @@
 // Módulo da aba DRE
 const AbaDre = {
   render: function(containerId, contexto) {
+        // Repopula datalists de filtros com todos os valores únicos do dataset base
+        function repopulateDREFilterDatalists(data) {
+          const map = {
+            'dre-filter-cc': 'centroCusto',
+            'dre-filter-dept': 'departamento',
+            'dre-filter-client': 'cliente',
+            'dre-filter-sbd': 'sbd',
+            'dre-filter-proj': 'projectType'
+          };
+          Object.entries(map).forEach(([inputId, field]) => {
+            const input = document.getElementById(inputId);
+            const listId = input && input.getAttribute('list');
+            const dl = listId && document.getElementById(listId);
+            if (dl) {
+              // Extrai todos os valores únicos do dataset base
+              const values = Array.from(new Set(data.map(item => String(item[field] || '').trim()).filter(v => v)));
+              values.sort((a, b) => a.localeCompare(b, 'pt-BR'));
+              dl.innerHTML = values.map(v => `<option value="${v}">`).join('');
+            }
+          });
+        }
+        repopulateDREFilterDatalists(contexto.data || []);
     // contexto: { year, filtros, dadosBrutos, departamentos, data, keyRatiosData, exemptCCs, ... }
     // Funções utilitárias devem ser passadas no contexto!
     const container = document.getElementById(containerId);
