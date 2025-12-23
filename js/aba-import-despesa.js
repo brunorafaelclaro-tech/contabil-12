@@ -178,5 +178,25 @@
         if (typeof app.renderPreview === 'function') app.renderPreview();
     };
 
+    mod.confirmDespesaImport = function(app) {
+        // Remove apenas registros do tipo Despesa dos períodos importados
+        const periodsToReplace = new Set((app.tempData || []).map(item => app.normalizePeriod(item.mes, item.ano)));
+        let newList = (app.data || []).filter(item => {
+            if (item.tipo !== 'Despesa') return true;
+            const period = app.normalizePeriod(item.mes, item.ano);
+            return !periodsToReplace.has(String(period));
+        });
+        newList = [...newList, ...(app.tempData || [])];
+        if (window.DataAPI && typeof DataAPI.importDespesa === 'function') {
+            DataAPI.importDespesa(app, newList, { persist: true, render: true });
+        } else {
+            app.data = newList;
+            if (app.saveToStorage) app.saveToStorage();
+            if (typeof app.renderData === 'function') app.renderData();
+        }
+        app.showToast(`${(app.tempData || []).length} registros de Despesa salvos.`);
+        app.cancelImport();
+    };
+
     window.AbaImportDespesa = mod;
 })();

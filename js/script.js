@@ -2850,7 +2850,7 @@ const app = {
         }
 
         if (this.currentImportType === 'KeyRatios') {
-            // Remove only key ratios that match the exact imported periods (mes-ano)
+            // ...existing code...
             const existingKR = (this.keyRatiosData || []).filter(item => {
                 const period = this.normalizePeriod(item.mes, item.ano);
                 return !periodsToReplace.has(String(period));
@@ -2866,27 +2866,28 @@ const app = {
             this.cancelImport();
             this.switchTab('dre');
         } else if (this.currentImportType === 'KeyRatiosBudget') {
+            // ...existing code...
             if (window.AbaImportKeyRatios && typeof window.AbaImportKeyRatios.confirmKeyRatiosBudgetImport === 'function') {
                 return window.AbaImportKeyRatios.confirmKeyRatiosBudgetImport(this);
             }
             this.showToast('Módulo de importação Key Ratios Budget não encontrado.', true);
             return;
         } else if (this.currentImportType === 'PlanoContas') {
+            // ...existing code...
             if (window.AbaImportPlanoContas && typeof window.AbaImportPlanoContas.confirmPlanoContasImport === 'function') {
                 return window.AbaImportPlanoContas.confirmPlanoContasImport(this);
             }
-            // Fallback: persist via DataAPI if available
             if (window.DataAPI && typeof DataAPI.setPlanoContas === 'function') {
                 DataAPI.setPlanoContas(this, this.tempData, { persist: true, render: true });
             } else {
-                this.planoContas = this.tempData; // Overwrite
+                this.planoContas = this.tempData;
                 this.saveToStorage();
                 if (typeof this.renderPlanoContas === 'function') try { this.renderPlanoContas(); } catch(e){}
             }
             this.showToast(`${this.tempData.length} contas do Plano de Contas salvas.`);
             this.cancelImport();
         } else if (this.currentImportType === 'Balance') {
-            // Remove only balance records that match the imported periods (mes-ano), then add the new ones
+            // ...existing code...
             const existingBal = (this.balanceData || []).filter(item => {
                 const period = this.normalizePeriod(item.mes, item.ano);
                 return !periodsToReplace.has(String(period));
@@ -2901,19 +2902,37 @@ const app = {
             this.showToast(`${this.tempData.length} registros de Balanço salvos.`);
             this.cancelImport();
             this.renderBalanceData();
+        } else if (this.currentImportType === 'Receita') {
+            if (window.AbaImportReceita && typeof window.AbaImportReceita.confirmReceitaImport === 'function') {
+                return window.AbaImportReceita.confirmReceitaImport(this);
+            }
+            // Fallback: manter lógica anterior
+            const periodsToReplace = new Set(this.tempData.map(item => this.normalizePeriod(item.mes, item.ano)));
+            let newList = (this.data || []).filter(item => {
+                if (item.tipo !== 'Receita') return true;
+                const period = this.normalizePeriod(item.mes, item.ano);
+                return !periodsToReplace.has(String(period));
+            });
+            newList = [...newList, ...(this.tempData || [])];
+            if (window.DataAPI && typeof DataAPI.importReceita === 'function') {
+                DataAPI.importReceita(this, newList, { persist: true, render: true });
+            } else {
+                this.data = newList;
+                if (this.saveToStorage) this.saveToStorage();
+                if (typeof this.renderData === 'function') this.renderData();
+            }
+            this.showToast(`${(this.tempData || []).length} registros de Receita salvos.`);
+            this.cancelImport();
         } else {
-            // For main imports (Receita/Despesa/Budget etc.) remove only records of the same type that match the imported periods (mes-ano)
+            // ...existing code...
             const existingMain = (this.data || []).filter(item => {
                 if (item.tipo !== this.currentImportType) return true;
                 const period = this.normalizePeriod(item.mes, item.ano);
                 return !periodsToReplace.has(String(period));
             });
-
-            // Diagnostic: log sample of tempData being merged to this.data to verify values/types
             try {
                 console.log('confirmImport diagnostic - sample tempData:', this.tempData.slice(0,10).map(it => ({conta: it.conta, valor: it.valor, raw: it._rawValor, mes: it.mes, ano: it.ano, tipo: it.tipo, valorType: typeof it.valor}))); 
             } catch (e) {}
-
             const mergedMain = [...existingMain, ...this.tempData];
             if (window.DataAPI && typeof DataAPI.setData === 'function') {
                 DataAPI.setData(this, mergedMain, { persist: true, render: true });

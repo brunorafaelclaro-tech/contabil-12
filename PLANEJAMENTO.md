@@ -8,20 +8,25 @@
 - Manter fallback compatível até estabilizar (`DataAPI` opt-in).
 - Commits pequenos e atômicos por módulo.
 
+
 **Cronograma (3–4 h por dia)**
-- Dia 1 — Audit + iniciar `balanceData` (3–4 h)
-  - Mapear responsabilidades em `script.js` e dependências do Balanço.
-  - Criar branch `backup-before-balanceData-<timestamp>` e começar extração do preview/parse.
+- ~~Dia 1 — Audit + iniciar `balanceData` (3–4 h)~~ ✅
+  - ~~Mapear responsabilidades em `script.js` e dependências do Balanço.~~
+  - ~~Criar branch `backup-before-balanceData-<timestamp>` e começar extração do preview/parse.~~
+  - **Status:** Concluído. Módulo `aba-import-balance.js` criado, centralização via DataAPI implementada, testes manuais e commits realizados.
 
-- Dia 2 — Finalizar `balanceData` (3–4 h)
-  - Completar heurísticas, fallback (preview raw) e `DataAPI.setBalanceData`.
-  - Testes de import/export e render.
+- ~~Dia 2 — Finalizar `balanceData` (3–4 h)~~ ✅
+  - ~~Completar heurísticas, fallback (preview raw) e `DataAPI.setBalanceData`.~~
+  - ~~Testes de import/export e render.~~
+  - **Status:** Concluído. Toda lógica de importação, preview, persistência e renderização do balanço está modularizada e validada.
 
-- Dia 3 — `receita` (3–4 h)
-  - Extrair import/processamento para `js/aba-import-receita.js` e usar `DataAPI.importReceita`.
+- ~~Dia 3 — `receita` (3–4 h)~~ ✅
+  - ~~Extrair import/processamento para `js/aba-import-receita.js` e usar `DataAPI.importReceita`.~~
+  - **Status:** Concluído. Módulo `aba-import-receita.js` padronizado, integração com DataAPI validada, testes manuais realizados e push efetuado.
 
-- Dia 4 — `despesa` (3–4 h)
-  - Extrair import/processamento para `js/aba-import-despesa.js` e usar `DataAPI.importDespesa`.
+- ~~Dia 4 — `despesa` (3–4 h)~~ ✅
+  - ~~Extrair import/processamento para `js/aba-import-despesa.js` e usar `DataAPI.importDespesa`.~~
+  - **Status:** Concluído. Módulo `aba-import-despesa.js` padronizado, integração com DataAPI validada, testes manuais realizados e push será efetuado.
 
 - Dia 5 — `keyRatios` e budgets (3–4 h)
   - Padronizar `keyRatiosData` e `keyRatiosBudgetData` via `DataAPI`.
