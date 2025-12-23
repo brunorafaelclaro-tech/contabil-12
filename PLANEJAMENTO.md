@@ -28,8 +28,9 @@
   - ~~Extrair import/processamento para `js/aba-import-despesa.js` e usar `DataAPI.importDespesa`.~~
   - **Status:** Concluído. Módulo `aba-import-despesa.js` padronizado, integração com DataAPI validada, testes manuais realizados e push será efetuado.
 
-- Dia 5 — `keyRatios` e budgets (3–4 h)
-  - Padronizar `keyRatiosData` e `keyRatiosBudgetData` via `DataAPI`.
+- ~~Dia 5 — `keyRatios` e budgets (3–4 h)~~ ✅
+  - ~~Padronizar `keyRatiosData` e `keyRatiosBudgetData` via `DataAPI`.~~
+  - **Status:** Concluído. Módulo `aba-import-keyratios.js` padronizado, integração com DataAPI validada, testes manuais realizados e push será efetuado.
 
 - Dia 6 — Extrair renderers DRE pesados (3–4 h)
   - Mover DRE/DRE Acumulado/Budget para módulos específicos e delegar a `script.js`.

@@ -1,6 +1,26 @@
 // Módulo de importação Key Ratios
 (function(){
     window.AbaImportKeyRatios = {
+        confirmKeyRatiosImport(app) {
+            // Remove apenas registros dos períodos importados
+            const periodsToReplace = new Set((app.tempData || []).map(item => app.normalizePeriod(item.mes, item.ano)));
+            let newList = (app.keyRatiosData || []).filter(item => {
+                const period = app.normalizePeriod(item.mes, item.ano);
+                return !periodsToReplace.has(String(period));
+            });
+            newList = [...newList, ...(app.tempData || [])];
+            if (window.DataAPI && typeof DataAPI.importKeyRatios === 'function') {
+                DataAPI.importKeyRatios(app, newList, { persist: true, render: true });
+            } else if (window.DataAPI && typeof DataAPI.setKeyRatiosData === 'function') {
+                DataAPI.setKeyRatiosData(app, newList, { persist: true, render: true });
+            } else {
+                app.keyRatiosData = newList;
+                if (app.saveToStorage) app.saveToStorage();
+                if (typeof app.renderData === 'function') app.renderData();
+            }
+            app.showToast(`${(app.tempData || []).length} registros de Key Ratios salvos.`);
+            app.cancelImport();
+        },
         processKeyRatiosData(app, rows) {
             app.tempData = [];
             let lockedError = false;
