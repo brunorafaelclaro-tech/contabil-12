@@ -430,3 +430,40 @@ const AbaDreDepartamento = {
   }
 };
 window.AbaDreDepartamento = AbaDreDepartamento;
+
+// Expor impl e helper de preparação de contexto para migração incremental
+window.AbaDreDepartamento.impl = AbaDreDepartamento;
+window.AbaDreDepartamento.prepareCtx = function(appRef) {
+  const getFilterValue = (id) => { const el = document.getElementById(id); if (!el) return ''; const v = String(el.value || '').trim(); return v === 'Todos...' ? '' : v; };
+  let year = parseInt(document.getElementById('dre-dept-year') ? document.getElementById('dre-dept-year').value : (new Date().getFullYear()));
+  if (isNaN(year)) year = (new Date()).getFullYear();
+  let month = parseInt(document.getElementById('dre-dept-month') ? document.getElementById('dre-dept-month').value : (new Date().getMonth()+1));
+  if (isNaN(month)) month = (new Date()).getMonth() + 1;
+  const type = (document.getElementById('dre-dept-type') ? document.getElementById('dre-dept-type').value : 'accumulated');
+
+  const ctx = {
+    year,
+    month,
+    type,
+    filtros: {
+      cc: getFilterValue('dre-dept-cc'),
+      dept: getFilterValue('dre-dept-dept'),
+      client: getFilterValue('dre-dept-client'),
+      sbd: getFilterValue('dre-dept-sbd'),
+      proj: getFilterValue('dre-dept-proj')
+    },
+    data: appRef.data || [],
+    planoContas: appRef.planoContas || [],
+    mgmtFees: appRef.mgmtFees || [],
+    mgmtDetailData: appRef.mgmtDetailData || {},
+    keyRatiosData: (window.DataAPI && typeof DataAPI.getKeyRatiosData === 'function') ? DataAPI.getKeyRatiosData(appRef) : (appRef.keyRatiosData || []),
+    balanceData: appRef.balanceData || [],
+    exemptCCs: appRef.exemptCCs || [],
+    isAdmAllocationEnabled: !!appRef.isAdmAllocationEnabled,
+    isAdmAllocationSueciaEnabled: !!appRef.isAdmAllocationSueciaEnabled,
+    dreDeptLayout: appRef.dreDeptLayout || [],
+    normalizeAccountDigits: (window.AppUtils && AppUtils.normalizeAccountDigits) || (s=>String(s||'')),
+    getLastMonthHeads: appRef.getLastMonthHeads ? appRef.getLastMonthHeads.bind(appRef) : null
+  };
+  return ctx;
+};

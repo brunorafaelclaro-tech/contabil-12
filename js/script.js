@@ -179,6 +179,15 @@ const app = {
 
     _renderDREDepartamentoLegacy() {
             // Legacy implementation of renderDREDepartamento — extracted for incremental migration
+            // If the new module provides a prepareCtx + impl.render, delegate to it (incremental migration step 1)
+            try {
+                if (window.AbaDreDepartamento && typeof window.AbaDreDepartamento.prepareCtx === 'function' && window.AbaDreDepartamento.impl && typeof window.AbaDreDepartamento.impl.render === 'function') {
+                    const ctx = window.AbaDreDepartamento.prepareCtx(this);
+                    return window.AbaDreDepartamento.impl.render('view-dre-departamento', ctx);
+                }
+            } catch (e) {
+                console.warn('Erro delegando para AbaDreDepartamento.impl', e);
+            }
             if (typeof LEGACY_DRE_DISABLED !== 'undefined' && LEGACY_DRE_DISABLED) {
                 return;
             }
