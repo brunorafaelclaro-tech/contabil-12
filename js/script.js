@@ -1,6 +1,5 @@
 
-// Helpers, filtros e renderizações DRE agora são feitos exclusivamente por módulos dedicados (aba-dre.js, aba-dre-acumulado.js, aba-dre-budget-2.js, etc) e AppUtils.
-// Código legado removido para manter o script.js enxuto e seguro.
+// Helpers, filtros e renderizações centralizados em módulos e AppUtils.
 
 
 
@@ -71,6 +70,65 @@ const app = {
             'margin-filter-cc',
             'margin-filter-dept',
             'margin-filter-client',
+            'margin-filter-sbd',
+            'margin-filter-proj'
+        ];
+        ids.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.value = 'Todos...';
+                el.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+        });
+        this.applyFilterDependencies('margin', true);
+        this.renderMarginAnalysis();
+    },
+    data: [],
+    centrosCusto: [], // Lista de centros de custo (Project ID mapping)
+    planoContas: [], 
+    balanceData: [], // Dados de Balanço e Pos EBIT
+    locks: [], 
+    mgmtFees: [], 
+    mgmtDetailData: {}, // Dados detalhados de Management Fee (Ocra/Calc)
+    _mgmtSaveTimer: null,
+    ocraConfig: [], // Configuração de Cadastro OCRA (Lista de objetos)
+    exemptCCs: [], 
+    // keyRatiosData: [], // Substituído por DataAPI.getKeyRatiosData/app.keyRatiosData
+        keyRatiosBudgetData: [],
+        // Configurável: contas do Budget que devem sempre ser tratadas como RECEITA (forçar classificação)
+        budgetRevenueAccounts: [],
+        // Contas permitidas como receita quando departamento === 'ADM'
+        admRevenueAllowedAccounts: ['1899','1902','1945','1953','1961','3204','3212'],
+    tempData: [], 
+    currentImportType: 'KeyRatios', 
+    currentDREExportData: [], 
+    currentDREAcumuladoExportData: [],
+    marginExclusionFilter: [], 
+    isAdmAllocationEnabled: false, // Estado do botão de rateio ADM
+    isAdmAllocationSueciaEnabled: false, // Estado do botão de rateio ADM Suécia
+
+    // Layout do DRE Departamento
+    dreDeptLayout: [
+        { type: 'account', code: '3010', description: 'Consultant fees external' },
+        { type: 'account', code: '3556', description: 'Consultant fees within own Business Area' },
+        { type: 'account', code: '3557', description: 'Consultant fees to other Business Area' },
+        { type: 'account', code: '3015', description: 'Write- up/down of fees' },
+        { type: 'account', code: '3095', description: 'Provision not invoiced WIP' },
+        { type: 'account', code: '3019', description: 'Fee other dep. within same comp.' },
+        { type: 'account', code: '3018', description: 'Costs other dep. within same comp.' },
+        { type: 'account', code: '3030', description: 'Subcontractor fees' },
+        { type: 'account', code: '3204', description: 'Tax on revenue (Dynamic)' },
+        { type: 'total', description: 'Total Revenue', bg: 'bg-yellow-100', id: 'total_revenue' },
+        { type: 'account', code: '3413', description: 'Computers within projects' },
+        { type: 'account', code: '3040', description: 'Travel expenses, outlay' },
+        { type: 'account', code: '3050', description: 'Recharged expenses' },
+        { type: 'account', code: '3110', description: 'Training' },
+        { type: 'account', code: '3521', description: 'Sales of computers' },
+        { type: 'account', code: '3910', description: 'Rents' },
+        { type: 'account', code: '3510', description: 'Machinery fees' },
+        { type: 'account', code: '32101', description: 'Licences' },
+        { type: 'account', code: '3960', description: 'Exchange profit from business' },
+        { type: 'account', code: '3973', description: 'Capital gains on fixed assets' },
         { type: 'account', code: '3900', description: 'Other income' },
         { type: 'total', description: 'Total Other Income', bg: 'bg-yellow-100', id: 'total_other_income' },
         { type: 'calculation', description: 'TOTAL INCOME', bg: 'bg-green-100', formula: 'total_revenue + total_other_income', id: 'total_income' },
@@ -268,7 +326,7 @@ const app = {
         23001, 11759
     ],
     outrasAdmAccounts: [2674, 2682, 2690],
-    // GRUPO REMOVIDO/VAZIO
+    // (grupo removido)
     outrasPosAccounts: [], 
     // CONTA 2844 CONSOLIDADA NO GRUPO PRINCIPAL PÓS-EBITDA
     posEbitdaAccounts: [
@@ -831,7 +889,7 @@ const app = {
             this.applyFilterDependencies('dre'); // Garante que os filtros estejam atualizados
             this.renderDRE(); 
         }
-        // 'dre-budget' removed — use 'dre-budget-2' instead
+        // 'dre-budget' foi substituído por 'dre-budget-2'
         else if (tabName === 'dre-acumulado') { 
             this.populateFilters(); 
             this.applyFilterDependencies('dre-acc'); // Garante que os filtros estejam atualizados
@@ -1233,52 +1291,7 @@ const app = {
         });
 
         // 2. Calcular contagem de consultores por departamento (Key Ratios)
-        // REMOVIDO: Duplicação de declaração. A lógica de Key Ratios foi movida para baixo.
-        /*
-        const consultantCounts = {};
-        let totalConsultants = 0;
-
-        const filteredKeyRatios = this.keyRatiosData.filter(item => {
-            if (!item.ano || !item.mes) return false;
-            if (String(item.ano) !== String(selectedYear)) return false;
-            const itemMonth = parseInt(item.mes);
-            if (selectedType === 'monthly') {
-                return itemMonth === selectedMonth;
-            } else { // YTD
-                return itemMonth <= selectedMonth;
-            }
-        });
-
-        try { console.debug('renderDRESuecia - filteredKeyRatios count', filteredKeyRatios.length); } catch(e) {}
-
-        filteredKeyRatios.forEach(kr => {
-            const depto = String(kr.departamento || '').trim();
-            if (depto) {
-                if (!consultantCounts[depto]) consultantCounts[depto] = 0;
-                // Assumindo que cada linha em KeyRatios é um consultor (ou usar item.hours se for ponderado)
-                // O usuário pediu "numero de consultores", então contagem de linhas parece apropriado.
-                // Se for YTD, somamos as ocorrências (consultor-mês).
-                consultantCounts[depto] += 1; 
-                totalConsultants += 1;
-                deptosSet.add(depto); // Garante que o departamento apareça
-            }
-        });
-        */
-
         // 3. Distribuir Management Fee (será inserido em 'valores' abaixo)
-        // REMOVIDO: O usuário solicitou que a conta 6430 NÃO pegue mais do totalMgmtFee (Conta 9999),
-        // e sim apenas do detalhamento novo (mgmtDetailData).
-        /*
-        if (totalMgmtFee !== 0 && totalConsultants > 0) {
-            if (!valores['6430']) valores['6430'] = {};
-            Object.keys(consultantCounts).forEach(depto => {
-                const count = consultantCounts[depto];
-                const share = (count / totalConsultants) * totalMgmtFee;
-                if (!valores['6430'][depto]) valores['6430'][depto] = 0;
-                valores['6430'][depto] += share; 
-            });
-        }
-        */
 
         // --- Lógica de Management Fee Detalhado (Novo) ---
         // Nota: consultantCounts e totalConsultants são calculados mais abaixo na seção Key Ratios
@@ -1409,17 +1422,7 @@ const app = {
         });
 
         // Lógica solicitada: Coluna ADM recebe a soma de todos os impostos (mantendo os originais)
-        // REMOVIDO: Usuário pediu para excluir o valor da 3204 para o ADM.
-        /*
-        let totalTax3204 = 0;
-        Object.values(dynamicTax).forEach(v => totalTax3204 += v);
-        
-        // Se houver imposto calculado, atribui o total à coluna ADM com sinal invertido
-        if (totalTax3204 !== 0) {
-            dynamicTax['ADM'] = totalTax3204 * -1;
-            deptosSet.add('ADM');
-        }
-        */
+        // (agregação de imposto 3204 atualizada)
 
         // --- Lógica de Balanço e Pos EBIT (BS/IT) ---
         // Filtra dados de Balanço para o período selecionado
@@ -5375,7 +5378,7 @@ const app = {
         try { this.renderSavedImports(); this.renderSavedImportsInline(); } catch (e) { /* ignore */ }
     },
 
-    // global saved imports dropdown removed — function intentionally deleted
+    // (global saved imports dropdown removido)
 
     generateOcraReport() {
         // 1. Obter dados calculados do DRE Departamento
@@ -6463,7 +6466,7 @@ app.backupDataAndNotify = function() {
     }
 };
 
-    // Scaling of preview values removed: import uses file values as-is.
+    // (scaling do preview removido; import usa valores do arquivo)
 
 // Gera sugestões de mapeamento (sem aplicar) e retorna lista de sugestões
 app.generateAutoMapSuggestions = function() {
