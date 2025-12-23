@@ -128,6 +128,27 @@ const app = {
     async init() {
         // Now load storage asynchronously (supports Electron)
         await this.loadFromStorage();
+        // Se `js/config/dre-config.js` foi carregado depois do parse, sincroniza aqui para garantir
+        // que `this.dreDeptLayout` e os grupos de contas estejam atualizados em runtime.
+        try {
+            if (window.DreConfig) {
+                this.dreDeptLayout = window.DreConfig.dreDeptLayout || this.dreDeptLayout || [];
+                const ag = window.DreConfig.accountGroups || {};
+                this.custoAccounts = ag.custoAccounts || this.custoAccounts || [];
+                this.depreciacaoAccounts = ag.depreciacaoAccounts || this.depreciacaoAccounts || [];
+                this.pessoalAccounts = ag.pessoalAccounts || this.pessoalAccounts || [];
+                this.aluguelAccounts = ag.aluguelAccounts || this.aluguelAccounts || [];
+                this.viagensAccounts = ag.viagensAccounts || this.viagensAccounts || [];
+                this.deductionAccounts = ag.deductionAccounts || this.deductionAccounts || [];
+                this.diversasAccounts = ag.diversasAccounts || this.diversasAccounts || [];
+                this.servicosProfissionaisAccounts = ag.servicosProfissionaisAccounts || this.servicosProfissionaisAccounts || [];
+                this.taxasAccounts = ag.taxasAccounts || this.taxasAccounts || [];
+                this.outrasAdmAccounts = ag.outrasAdmAccounts || this.outrasAdmAccounts || [];
+                this.outrasPosAccounts = ag.outrasPosAccounts || this.outrasPosAccounts || [];
+                this.posEbitdaAccounts = ag.posEbitdaAccounts || this.posEbitdaAccounts || [];
+                this.managementFeeAccounts = ag.managementFeeAccounts || this.managementFeeAccounts || [];
+            }
+        } catch(e) { console.warn('Erro sincronizando DreConfig em app.init()', e); }
         // Set default month selector on Margin view to current month
         try {
             const monthEl = document.getElementById('margin-month-select');
