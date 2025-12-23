@@ -81,3 +81,35 @@ npm start
 
 ---
 Arquivo gerado automaticamente por request do usuário. Para que eu commit/empurre este arquivo agora, responda `commit` — caso contrário eu apenas o deixo criado para você revisar.
+
+## Registro de Correções (23-12-2025)
+
+- **Problema:** A aba `DRE Departamento` perdeu o layout (contas de balanço não eram exibidas) e a aba `DRE Suécia` não apresentava dados em colunas apropriadas.
+- **Causa:** Condição de corrida / ordem de carregamento após extrair `dreDeptLayout` e grupos de contas para `js/config/dre-config.js`. O objeto `app` podia inicializar antes de `window.DreConfig` estar disponível.
+- **Correção aplicada:** Em `js/script.js` adicionei uma sincronização em `app.init()` que atualiza `this.dreDeptLayout` e os grupos de contas a partir de `window.DreConfig` quando presente. Também atualizei `dreDeptLayout` e os grupos para referenciar `window.DreConfig` com fallback vazio quando o arquivo de config não estiver presente no parse.
+- **Arquivos alterados:**
+  - `js/script.js` — referências a `dreDeptLayout`/grupos substituídas por referências a `window.DreConfig` + sincronização em `app.init()`.
+  - `js/config/dre-config.js` — arquivo existente com `window.DreConfig.dreDeptLayout` e `window.DreConfig.accountGroups`.
+- **Branch:** `cleanup-remove-comments-2-20251223-124842` (commits comufix aplicados e push realizados).
+- **Como validar (quick smoke):**
+  1. `npm start`
+  2. Abrir o app e selecionar `Relatórios DRE -> DRE Departamento` e verificar que as linhas de Balanço/Ativos/Passivos aparecem.
+  3. Selecionar `Relatórios DRE -> DRE Suécia` e verificar que as colunas (por departamento/sbd/cliente) são populadas.
+  4. Abrir DevTools (Console) para checar eventuais erros JS.
+- **Próximo passo sugerido:** abrir PR pequeno para revisão dessas mudanças e, em seguida, prosseguir com a Fase B (modularizar renderers DRE em módulos separados).
+
+Registro adicionado automaticamente pelo agente em 2025-12-23.
+
+## Plano Resumido (para retomar)
+
+- **Objetivo:** transformar `js/script.js` em orquestrador (routing + delegação).  
+- **Fases:**  
+  - A: Constantes -> `js/config/dre-config.js` (concluído)  
+  - B: Renderers DRE -> `js/aba-dre-*.js` (PRs por aba)  
+  - C: Helpers UI -> `js/app-utils.js` (concluído)  
+  - D: Persistence -> `js/data-api.js` (savedImportedFiles, balanceData, mgmtFees)  
+  - E: Wrappers -> `script.js` monta contexto mínimo e chama `window.Aba*.render(ctx)`  
+  - F: QA final e limpeza (remover código morto, arquivar comentários)  
+- **Checklist rápido por PR:** backup branch, work branch `feat/...`, fallback, testes manuais (3 cenários), commit/push, abrir PR.  
+
+Arquivo atualizado para que você possa retomar quando quiser. (23-12-2025)
