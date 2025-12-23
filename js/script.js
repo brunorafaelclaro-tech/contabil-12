@@ -171,405 +171,363 @@ const app = {
         // Setup CSV upload for DRE departamento
         const dreCsvInput = document.getElementById('dre-departamento-csv');
         if (dreCsvInput) {
-            dreCsvInput.addEventListener('change', (e) => {
-                const file = e.target.files[0];
-                if (!file) return;
-                const reader = new FileReader();
-                reader.onload = (ev) => {
-                    app.processDreDepartamentoCSV(ev.target.result);
-                };
-                reader.readAsText(file);
-            });
+            // Fallback: use legacy implementation kept in app._renderDREDepartamentoLegacy
+            return this._renderDREDepartamentoLegacy();
         }
-        this.renderLocks();
-        this.renderExemptCCs();
-        this.loadOcraConfig();
-        // 1. Configura a lista de anos e a estrutura de filtros
-        this.populateFilters(); 
-        // 2. Configura a lógica de dependência dos filtros e popula as opções iniciais
-        this.setupDynamicFilters(); 
+
+    },
+
+    _renderDREDepartamentoLegacy() {
+            // Legacy implementation of renderDREDepartamento — extracted for incremental migration
+            if (typeof LEGACY_DRE_DISABLED !== 'undefined' && LEGACY_DRE_DISABLED) {
+                return;
+            }
+            const tbody = document.getElementById('dre-departamento-body');
+            const thead = tbody.parentElement.querySelector('thead');
+            const yearSelect = document.getElementById('dre-dept-year');
+            const monthSelect = document.getElementById('dre-dept-month');
+            const typeSelect = document.getElementById('dre-dept-type');
+
+            if (!tbody || !thead) return;
+            tbody.innerHTML = '';
+
+            // Populate Years if needed
+            const years = Array.from(new Set(this.data.map(d => d.ano))).sort().filter(Boolean);
         
-        // Setup DRE type selector listener (Actual / Budget / Both)
-        const dreTypeEl = document.getElementById('dre-type-select');
-        if (dreTypeEl) {
-            if (!dreTypeEl.value) dreTypeEl.value = 'Actual';
-            dreTypeEl.removeEventListener('change', dreTypeEl._handler);
-            dreTypeEl._handler = () => {
-                // When type changes, update filters and re-render DRE
-                this.populateFilters();
-                this.applyFilterDependencies('dre');
-                this.renderDRE();
-            };
-            dreTypeEl.addEventListener('change', dreTypeEl._handler);
-        }
-
-        // convenience method for inline calls
-        this.onDreTypeChange = () => {
-            const el = document.getElementById('dre-type-select');
-            if (el) {
-                el.dispatchEvent(new Event('change'));
-            } else {
-                this.populateFilters();
-                this.applyFilterDependencies('dre');
-                this.renderDRE();
-            }
-        };
-
-        // (previously attempted to persist savedImportedFiles here; actual persistence
-        // happens in saveToStorage/loadFromStorage and via readerDataUrl handler)
-
-        this.switchTab('import-key-ratios'); 
-        document.getElementById('lock-year').value = new Date().getFullYear();
-        document.getElementById('mgmt-year').value = new Date().getFullYear();
-        document.getElementById('dre-acc-month').value = new Date().getMonth() + 1; 
-    },
-
-    downloadSavedImport(idOrIndex) {
-        try {
-            if (!this.savedImportedFiles || !this.savedImportedFiles.length) {
-                this.showToast('Nenhum arquivo salvo para download.', true);
-                return;
+            // Se o select estiver vazio e tivermos anos, popula
+            if (yearSelect.options.length === 0 && years.length > 0) {
+                years.forEach(y => {
+                    const opt = document.createElement('option');
+                    opt.value = y;
+                    opt.innerText = y;
+                    yearSelect.appendChild(opt);
+                });
+                // Select latest year by default
+                yearSelect.value = years[years.length - 1];
             }
 
-            // If no arg passed, choose the most recent
-            let item = null;
-            if (typeof idOrIndex === 'undefined' || idOrIndex === null) {
-                item = this.savedImportedFiles[this.savedImportedFiles.length - 1];
-            } else if (typeof idOrIndex === 'number') {
-                item = this.savedImportedFiles[idOrIndex];
-            } else {
-                item = this.savedImportedFiles.find(f => f.id === idOrIndex) || null;
+            const selectedYear = yearSelect.value;
+            const selectedMonth = parseInt(monthSelect.value);
+            const selectedType = typeSelect.value;
+
+            if (!this.planoContas || this.planoContas.length === 0) {
+                this.showToast("Aviso: Plano de Contas não importado. Exibindo contas originais.", true);
             }
 
-            if (!item) {
-                this.showToast('Arquivo não encontrado.', true);
-                return;
-            }
-
-            const base64 = item.base64;
-            if (!base64) {
-                this.showToast('Arquivo salvo inválido (sem conteúdo).', true);
-                return;
-            }
-
-            const byteChars = atob(base64);
-            const byteNumbers = new Array(byteChars.length);
-            for (let i = 0; i < byteChars.length; i++) {
-                byteNumbers[i] = byteChars.charCodeAt(i);
-            }
-            const byteArray = new Uint8Array(byteNumbers);
-            const blob = new Blob([byteArray], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = item.fileName || 'imported.xlsx';
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            URL.revokeObjectURL(url);
-        } catch (err) {
-            console.error('downloadSavedImport error', err);
-            this.showToast('Erro ao gerar download do arquivo.', true);
-        }
-    },
-
-    inferMonthYearFromFilename(fileName) {
-        if (window.AppUtils && typeof window.AppUtils.inferMonthYearFromFilename === 'function') {
-            try { return window.AppUtils.inferMonthYearFromFilename(fileName); } catch(e) { console.warn('inferMonthYearFromFilename AppUtils failed', e); }
-        }
-        if (!fileName || typeof fileName !== 'string') return null;
-        // fallback simple heuristic
-        const s = fileName.replace(/[_\-\.]/g, ' ').toLowerCase();
-        const yearMatch = s.match(/(20\d{2}|19\d{2})/);
-        const year = yearMatch ? parseInt(yearMatch[0]) : null;
-        const mmYYYY = s.match(/(0?[1-9]|1[0-2])[\s_\-\.\/]*(20\d{2})/);
-        if (mmYYYY) return { month: parseInt(mmYYYY[1]), year: parseInt(mmYYYY[2]), label: (parseInt(mmYYYY[1]) + '/' + mmYYYY[2]) };
-        return year ? { month: null, year: year, label: (year) } : null;
-    },
-
-    renderSavedImports() {
-        // Ocultar completamente a seção de imports salvos (sem exibir metadados)
-        const section = document.getElementById('saved-imports-section');
-        const summary = document.getElementById('saved-imports-summary');
-        if (section) section.classList.add('hidden');
-        if (summary) summary.innerText = '';
-        return;
-    },
-
-    renderSavedImportsInline() {
-        // Limpar qualquer exibição inline de imports salvos (não mostrar nome/label)
-        const container = document.getElementById('saved-imports-inline');
-        const fileNameEl = document.getElementById('fileName');
-        if (container) container.innerHTML = '';
-        if (fileNameEl) fileNameEl.innerText = '';
-        return;
-    },
-
-    deleteSavedImport(id) {
-        if (!id) return;
-        if (!confirm('Excluir este arquivo salvo?')) return;
-        this.savedImportedFiles = (this.savedImportedFiles || []).filter(f => f.id !== id);
-        try { if (this.saveToStorage) this.saveToStorage(); } catch (e) { console.warn('saveToStorage failed after deleteSavedImport', e); }
-        try { this.renderSavedImports(); } catch (e) {}
-
-        try { this.renderSavedImportsInline(); } catch (e) {}
-        try { this.renderSavedImportsGlobal(); } catch (e) {}
-    },
-
-    // Diagnostic helper: show details of ADM allocation for current filters
-    showAdmAllocationDetail(year, groupBy) {
-        const y = parseInt(year) || parseInt(document.getElementById('margin-year-select').value) || new Date().getFullYear();
-        const monthSelected = parseInt(document.getElementById('margin-month-select') ? document.getElementById('margin-month-select').value : (new Date().getMonth()+1)) || (new Date().getMonth()+1);
-        const gb = groupBy || document.getElementById('margin-group-by').value || 'client';
-        const filterCC = (document.getElementById('margin-filter-cc')||{value:''}).value.trim();
-        const filterDept = (document.getElementById('margin-filter-dept')||{value:''}).value.trim();
-        const filterCli = (document.getElementById('margin-filter-client')||{value:''}).value.trim();
-        const filterSBD = (document.getElementById('margin-filter-sbd')||{value:''}).value.trim();
-        const filterProj = (document.getElementById('margin-filter-proj')||{value:''}).value.trim();
-
-        let admPool = 0, admPoolBdg = 0;
-        const groups = {};
-        const groupsB = {};
-        this.data.forEach(it => {
-            if (!it || parseInt(it.ano) !== y) return;
-            const m = Number(it.mes) || 0;
-            if (!m || m < 1 || m > monthSelected) return;
-            const isAdm = String(it.departamento).trim() === 'ADM';
-            const gkey = String(it[gb] || 'Não Classificado').trim() || 'Não Classificado';
-            if (filterCC && String(it.centroCusto) !== filterCC) return;
-            if (filterDept && String(it.departamento) !== filterDept) return;
-            if (filterCli && String(it.cliente) !== filterCli) return;
-            if (filterSBD && String(it.sbd) !== filterSBD) return;
-            if (filterProj && String(it.projectType) !== filterProj) return;
-
-            // Actuals
-            if (it.tipo !== 'Budget') {
-                const c = Number(it.conta);
-                let isCusto = this.custoAccounts.includes(c) || this.viagensAccounts.includes(c) || this.pessoalAccounts.includes(c) || this.outrasAdmAccounts.includes(c) || this.depreciacaoAccounts.includes(c) || this.servicosProfissionaisAccounts.includes(c) || this.taxasAccounts.includes(c);
-                if (!isCusto && Number(it.valor) < 0) isCusto = true;
-                if (this.isAdmAllocationEnabled && isAdm && it.tipo !== 'Receita' && isCusto) { admPool += Number(it.valor) || 0; }
-                if (!isAdm) {
-                    groups[gkey] = groups[gkey] || { receita:0, custos:0, heads:0 };
-                    groups[gkey].custos += Number(it.valor) || 0;
+            // Mapeia conta contábil -> OCRA (Movido para antes do filtro para identificar contas de balanço)
+            const contabilToOcra = {};
+            const ocraDesc = {};
+        
+            this.planoContas.forEach(pc => {
+                // Normaliza para string e remove espaços
+                const red = String(pc.contaReduzida || '').trim();
+                const ocra = String(pc.contaOCRA || '').trim();
+            
+                if (red && ocra) {
+                    contabilToOcra[red] = ocra;
+                    // Tenta usar a descrição da primeira ocorrência, ou uma lógica melhor se disponível
+                    if (!ocraDesc[ocra]) {
+                        ocraDesc[ocra] = pc.ocraDesc || pc.descricao || '';
+                    }
                 }
-            } else {
-                // Budget
-                const c = Number(it.conta);
-                let isCustoB = this.custoAccounts.includes(c) || this.viagensAccounts.includes(c);
-                if (!isCustoB && Number(it.valor) < 0) isCustoB = true;
-                if (this.isAdmAllocationEnabled && String(it.departamento).trim() === 'ADM' && isCustoB) admPoolBdg += Number(it.valor) || 0;
-                if (!(String(it.departamento).trim() === 'ADM')) {
-                    groupsB[gkey] = groupsB[gkey] || { receita:0, custos:0, heads:0 };
-                    groupsB[gkey].custos += Number(it.valor) || 0;
+            });
+
+            // Filter Data
+            const filteredData = this.data.filter(item => {
+                // Para DRE Departamento: somente Actual - ignorar linhas Budget
+                if (String(item.tipo || '').trim() === 'Budget') return false;
+                if (!item.ano || !item.mes) return false;
+                if (String(item.ano) !== String(selectedYear)) return false;
+
+                const itemMonth = parseInt(item.mes);
+
+                // Verifica se é conta de Balanço (Ativo/Passivo)
+                const contaOriginal = String(item.conta).trim();
+                let ocra = item.contaOCRA ? String(item.contaOCRA).trim() : '';
+                if (!ocra) ocra = contabilToOcra[contaOriginal] || contaOriginal;
+            
+                const firstDigit = ocra.charAt(0);
+                const isBalanceSheet = ['1', '2'].includes(firstDigit);
+
+                if (selectedType === 'monthly') {
+                    return itemMonth === selectedMonth;
+                } else { // YTD
+                    if (isBalanceSheet) {
+                        // Contas de Ativo/Passivo já são acumuladas (saldo), então pega só o mês atual
+                        return itemMonth === selectedMonth;
+                    } else {
+                        return itemMonth <= selectedMonth;
+                    }
                 }
+            });
+
+            try {
+                console.debug('renderDREDepartamento - params', { selectedYear, selectedMonth, selectedType, filteredDataCount: filteredData.length });
+            } catch (e) {}
+
+            // Agrupar valores por conta OCRA e departamento (usando filteredData)
+            const valores = {};
+            const dynamicTax = {}; // Armazena imposto calculado por departamento
+            const deptosSet = new Set();
+
+            // --- Lógica de Management Fee (6430) ---
+            // 1. Calcular Total Management Fee do período
+            let totalMgmtFee = 0;
+            this.mgmtFees.forEach(mf => {
+                if (String(mf.ano) !== String(selectedYear)) return;
+                const mfMonth = parseInt(mf.mes);
+                if (selectedType === 'monthly') {
+                    if (mfMonth === selectedMonth) totalMgmtFee += Number(mf.valor);
+                } else {
+                    if (mfMonth <= selectedMonth) totalMgmtFee += Number(mf.valor);
+                }
+            });
+
+            // --- Key Ratios Logic for DRE Departamento (moved up) ---
+            const consultantCounts = {};
+            const consultantHours = {};
+            const headsConsultantsSets = {};
+            const headsADMSets = {};
+            let totalConsultants = 0;
+
+            const filteredKeyRatios = this.keyRatiosData.filter(item => {
+                if (!item.ano || !item.mes) return false;
+                if (String(item.ano) !== String(selectedYear)) return false;
+                const itemMonth = parseInt(item.mes);
+                if (selectedType === 'monthly') return itemMonth === selectedMonth;
+                return itemMonth <= selectedMonth;
+            });
+
+            filteredKeyRatios.forEach(kr => {
+                const depto = String(kr.departamento || '').trim();
+                if (depto) {
+                    if (!consultantCounts[depto]) consultantCounts[depto] = 0;
+                    consultantCounts[depto] += 1;
+                
+                    if (!consultantHours[depto]) consultantHours[depto] = 0;
+                    consultantHours[depto] += (Number(kr.hours) || 0);
+
+                    totalConsultants += 1;
+                    deptosSet.add(depto);
+                }
+            });
+
+            if (this.mgmtDetailData && this.mgmtDetailData[selectedYear] && totalConsultants > 0) {
+                const detailData = this.mgmtDetailData[selectedYear];
+                ['ocra', 'calc'].forEach(rowKey => {
+                    const rowData = detailData[rowKey];
+                    if (!rowData) return;
+
+                    let rowValue = 0;
+                    if (selectedType === 'monthly') {
+                        rowValue = Number(rowData.values[selectedMonth]) || 0;
+                    } else {
+                        for (let m = 1; m <= selectedMonth; m++) {
+                            rowValue += Number(rowData.values[m]) || 0;
+                        }
+                    }
+
+                    if (rowValue !== 0) {
+                        if (rowData.debit) {
+                            const acc = String(rowData.debit).trim();
+                            if (!valores[acc]) valores[acc] = {};
+                            Object.keys(consultantCounts).forEach(depto => {
+                                const count = consultantCounts[depto];
+                                const share = (count / totalConsultants) * rowValue;
+                                if (!valores[acc][depto]) valores[acc][depto] = 0;
+                                valores[acc][depto] += share;
+                            });
+                        }
+                        if (rowData.credit) {
+                            const acc = String(rowData.credit).trim();
+                            if (!valores[acc]) valores[acc] = {};
+                            Object.keys(consultantCounts).forEach(depto => {
+                                const count = consultantCounts[depto];
+                                const share = (count / totalConsultants) * rowValue * -1;
+                                if (!valores[acc][depto]) valores[acc][depto] = 0;
+                                valores[acc][depto] += share;
+                            });
+                        }
+                    }
+                });
             }
-        });
 
-        // compute shares (headcount preferred)
-        const shares = {};
-        let totalShare = 0;
-        const keyRatiosData = (window.DataAPI && typeof DataAPI.getKeyRatiosData === 'function') ? DataAPI.getKeyRatiosData(this) : (this.keyRatiosData || []);
-        Object.keys(groups).forEach(k => {
-            const unique = new Set();
-            (keyRatiosData||[]).forEach(r => { if (parseInt(r.ano) === y && String(r[gb]||'').trim() === k) unique.add(r.name);});
-            const s = Math.max(unique.size, Math.abs(groups[k].receita || groups[k].custos || 0));
-            shares[k] = s; totalShare += s;
-        });
+            filteredData.forEach(item => {
+                if (!item.conta || !item.departamento) return;
+                const depto = String(item.departamento).trim();
+                if (depto) deptosSet.add(depto);
 
-        // allocations
-        const allocations = {};
-        if (Math.abs(totalShare) > 0) {
-            Object.keys(groups).forEach(k => allocations[k] = (shares[k]/totalShare) * admPool);
-        } else {
-            // equal distribution fallback
-            const ks = Object.keys(groups); const per = ks.length ? admPool/ks.length : 0;
-            ks.forEach(k => allocations[k] = per);
-        }
+                const contaOriginal = String(item.conta).trim();
+                const contaNum = Number(item.conta);
+                let ocra = item.contaOCRA ? String(item.contaOCRA).trim() : '';
+                if (!ocra) ocra = contabilToOcra[contaOriginal] || contaOriginal;
 
-        const allocationsB = {};
-        const totalShareB = 0;
-        if (Object.keys(groupsB).length) {
-            const ks = Object.keys(groupsB); const perB = admPoolBdg/ks.length;
-            ks.forEach(k => allocationsB[k] = perB);
-        }
+                const valor = Number(item.valor) || 0;
 
-        console.group('ADM Allocation Detail');
-        console.log('Year', y, 'groupBy', gb, 'AdmPool Actual', admPool, 'AdmPool Budget', admPoolBdg);
-        console.log('Groups (Actual) rows:', groups);
-        console.log('Allocations (Actual):'); console.table(Object.keys(allocations).map(k=>({group:k, alloc: allocations[k]})));
-        console.log('Groups (Budget) rows:', groupsB);
-        console.log('Allocations (Budget):'); console.table(Object.keys(allocationsB).map(k=>({group:k, alloc: allocationsB[k]})));
-        console.groupEnd();
-        return { admPool, allocations, admPoolBdg, allocationsB };
-    },
+                if (contaNum === 1902) {
+                    const ccToCheck = String(item.centroCusto || '').trim();
+                    const isExempt = this.exemptCCs.includes(ccToCheck);
+                    if (!isExempt) {
+                        const taxValue = valor * -0.0925;
+                        if (!dynamicTax[depto]) dynamicTax[depto] = 0;
+                        dynamicTax[depto] += taxValue;
+                    }
+                }
 
-    // Helper: sumariza totals YTD para verificação rápida (Actual vs Budget)
-    summarizeMarginYTD(year, month, groupBy) {
-        const y = parseInt(year) || parseInt(document.getElementById('margin-year-select').value) || new Date().getFullYear();
-        const m = parseInt(month) || parseInt(document.getElementById('margin-month-select')?.value) || (new Date().getMonth()+1);
-        const gb = groupBy || document.getElementById('margin-group-by')?.value || 'cliente';
-        const res = { year: y, month: m, groupBy: gb, actual: { receita:0, custos:0 }, budget: { receita:0, custos:0 } };
-        (this.data||[]).forEach(it => {
-            if (!it) return;
-            const itYear = parseInt(it.ano);
-            const itMonth = Number(it.mes) || 0;
-            if (itYear !== y) return;
-            if (!itMonth || itMonth < 1 || itMonth > m) return;
-            const v = Number(it.valor)||0;
-            if (it.tipo === 'Budget') {
-                if (this.custoAccounts.includes(Number(it.conta)) || this.viagensAccounts.includes(Number(it.conta)) || Number(it.valor) < 0) res.budget.custos += v; else res.budget.receita += v;
+                const ignoredAccounts = ['8010','8022','8300','8360','8331','8390','8072','8400','8412','8460','8436','8490','8893','8820','8821','8828','8829','8890','8810','8935','8940','8980'];
+                if (ignoredAccounts.includes(ocra) || ignoredAccounts.includes(String(contaNum))) return;
+                if (ocra === '3204' || contaNum === 3204) return;
+                if (ocra === '6430' || contaNum === 6430) return;
+                if (ocra === '3010' && depto === 'ADM' && contaNum === 3190) return;
+
+                if (!valores[ocra]) valores[ocra] = {};
+                if (!valores[ocra][depto]) valores[ocra][depto] = 0;
+                valores[ocra][depto] += valor;
+            });
+
+            // Balanço
+            const filteredBalance = this.balanceData.filter(item => {
+                if (!item.ano || !item.mes) return false;
+                if (String(item.ano) !== String(selectedYear)) return false;
+                const itemMonth = parseInt(item.mes);
+                return itemMonth === selectedMonth;
+            });
+
+            filteredBalance.forEach(item => {
+                const ocra = String(item.contaOCRA || item.contaReduzida || '').trim();
+                if (!ocra) return;
+                if (!valores[ocra]) valores[ocra] = {};
+                if (!valores[ocra]['BS/IT']) valores[ocra]['BS/IT'] = 0;
+                valores[ocra]['BS/IT'] += Number(item.saldoFinal) || 0;
+            });
+
+            let departamentos = Array.from(deptosSet).sort();
+            departamentos = departamentos.filter(d => d !== 'BS/IT' && d !== 'ADM');
+            departamentos.unshift('BS/IT');
+            if (deptosSet.has('ADM')) departamentos.push('ADM');
+
+            thead.innerHTML = `<tr><th class='px-3 py-3 text-left'>Conta OCRA</th><th class='px-3 py-3 text-left'>Descrição</th>${departamentos.map(d => `<th class='px-3 py-3 text-right'>${d}</th>`).join('')}<th class='px-3 py-3 text-right font-bold'>TOTAL</th></tr>`;
+
+            const excludedBSITRows = ['total_revenue', 'total_other_income', 'total_income', 'total_prod_costs', 'gross_profit', 'total_admin_costs', 'total_depreciation', 'profit_before_sas', 'total_sas', 'ebit'];
+
+            // Heads Logic
+            const filteredKeyRatiosHeads = this.keyRatiosData.filter(item => {
+                if (!item.ano || !item.mes) return false;
+                if (String(item.ano) !== String(selectedYear)) return false;
+                const itemMonth = parseInt(item.mes);
+                return itemMonth === selectedMonth;
+            });
+
+            filteredKeyRatiosHeads.forEach(kr => {
+                const depto = String(kr.departamento || '').trim();
+                if (depto) {
+                    const name = kr.name;
+                    if (name) {
+                        if (depto.toUpperCase() === 'ADM') {
+                            if (!headsADMSets[depto]) headsADMSets[depto] = new Set();
+                            headsADMSets[depto].add(name);
+                        } else {
+                            if (!headsConsultantsSets[depto]) headsConsultantsSets[depto] = new Set();
+                            headsConsultantsSets[depto].add(name);
+                        }
+                    }
+                }
+            });
+
+            const headsConsultants = {};
+            const headsADM = {};
+            Object.keys(headsConsultantsSets).forEach(k => { headsConsultants[k] = headsConsultantsSets[k].size; });
+            Object.keys(headsADMSets).forEach(k => { headsADM[k] = headsADMSets[k].size; });
+
+            valores['KR_HEADS_CONS'] = headsConsultants;
+            valores['KR_HEADS_ADM'] = headsADM;
+            valores['KR_HOURS'] = consultantHours;
+
+            // Render based on layout (kept simple here — the legacy implementation had extensive logic)
+            if (this.dreDeptLayout && this.dreDeptLayout.length > 0) {
+                let currentSectionTotal = {};
+                let savedTotals = {};
+                let invertValues = false;
+                const layout = [];
+                for (const row of this.dreDeptLayout) {
+                    layout.push(row);
+                    if (row.id === 'total_equity_liab') {
+                        layout.push({ type: 'header', description: 'Key Ratios', bg: 'bg-blue-100' });
+                        layout.push({ type: 'account', code: 'KR_HEADS_CONS', description: 'Heads Consultants', precision: 0 });
+                        layout.push({ type: 'account', code: 'KR_HEADS_ADM', description: 'Heads ADM', precision: 0 });
+                        layout.push({ type: 'account', code: 'KR_HOURS', description: 'Total hours' });
+                    }
+                }
+
+                layout.forEach(row => {
+                    if (row.id === 'total_income') invertValues = true;
+                    const tr = document.createElement('tr');
+                    if (row.type === 'header') {
+                        tr.innerHTML = `<td class='px-3 py-2 font-bold' colspan="${3 + departamentos.length}">${row.description}</td>`;
+                        tbody.appendChild(tr);
+                    } else if (row.type === 'account') {
+                        const ocra = String(row.code).trim();
+                        const desc = row.description || ocraDesc[ocra] || '';
+                        let html = `<td class='px-3 py-2'>${ocra}</td><td class='px-3 py-2'>${desc}</td>`;
+                        let rowTotal = 0;
+                        let hasValue = false;
+                        departamentos.forEach(depto => {
+                            let valor = 0;
+                            if (ocra === '3204') valor = dynamicTax[depto] || 0;
+                            else valor = (valores[ocra] && valores[ocra][depto]) ? valores[ocra][depto] : 0;
+                            if (invertValues && !ocra.startsWith('KR_')) valor = valor * -1;
+                            if (valor !== 0) hasValue = true;
+                            rowTotal += valor;
+                            if (!currentSectionTotal[depto]) currentSectionTotal[depto] = 0;
+                            currentSectionTotal[depto] += valor;
+                            const style = valor < 0 ? 'text-red-600' : 'text-gray-800';
+                            const precision = row.precision !== undefined ? row.precision : 2;
+                            html += `<td class='px-3 py-2 text-right ${style}'>${valor !== 0 ? valor.toLocaleString('pt-BR', {minimumFractionDigits:precision, maximumFractionDigits:precision}) : '-'}</td>`;
+                        });
+                        const rowStyle = rowTotal < 0 ? 'text-red-600' : 'text-gray-800';
+                        const precision = row.precision !== undefined ? row.precision : 2;
+                        html += `<td class='px-3 py-2 text-right font-bold ${rowStyle}'>${rowTotal !== 0 ? rowTotal.toLocaleString('pt-BR', {minimumFractionDigits:precision, maximumFractionDigits:precision}) : '-'}</td>`;
+                        tr.innerHTML = html;
+                        if (hasValue) tbody.appendChild(tr);
+                    } else if (row.type === 'total' || row.type === 'calculation') {
+                        const bgClass = row.bg || 'bg-gray-100';
+                        let html = `<td class='px-3 py-2 font-bold ${bgClass}'></td><td class='px-3 py-2 font-bold ${bgClass}'>${row.description}</td>`;
+                        if (row.id) savedTotals[row.id] = { ...currentSectionTotal };
+                        let rowTotal = 0;
+                        departamentos.forEach(depto => {
+                            if (depto === 'BS/IT' && excludedBSITRows.includes(row.id)) { html += `<td class='px-3 py-2 text-right font-bold ${bgClass}'>-</td>`; return; }
+                            const total = currentSectionTotal[depto] || 0;
+                            rowTotal += total;
+                            const totalFormatado = total.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+                            const style = total < 0 ? 'text-red-600' : 'text-gray-800';
+                            html += `<td class='px-3 py-2 text-right font-bold ${bgClass} ${style}'>${total !== 0 ? totalFormatado : '-'}</td>`;
+                        });
+                        const rowTotalFormatado = rowTotal.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+                        const rowStyle = rowTotal < 0 ? 'text-red-600' : 'text-gray-800';
+                        html += `<td class='px-3 py-2 text-right font-bold ${bgClass} ${rowStyle}'>${rowTotal !== 0 ? rowTotalFormatado : '-'}</td>`;
+                        tr.innerHTML = html;
+                        tbody.appendChild(tr);
+                        if (row.type === 'total') currentSectionTotal = {};
+                    }
+                });
             } else {
-                if (this.custoAccounts.includes(Number(it.conta)) || this.viagensAccounts.includes(Number(it.conta)) || Number(it.valor) < 0) res.actual.custos += v; else res.actual.receita += v;
-            }
-        });
-        console.log('YTD Summary', res);
-        return res;
-    },
-
-    // Opens an overlay panel with YTD summary (Actual + Budget) and ADM allocation details
-    openMarginYTDPanel() {
-        try {
-            const panelId = 'margin-ytd-panel';
-            const existing = document.getElementById(panelId);
-            if (existing) return existing.scrollIntoView();
-
-            const year = parseInt(document.getElementById('margin-year-select').value);
-            const month = parseInt(document.getElementById('margin-month-select').value);
-            const groupBy = document.getElementById('margin-group-by').value;
-
-            const ytd = this.summarizeMarginYTD(year, month, groupBy);
-            const adm = this.showAdmAllocationDetail(year, groupBy);
-
-            // Build panel
-            const cont = document.createElement('div');
-            cont.id = panelId;
-            cont.style.position = 'fixed'; cont.style.right = '12px'; cont.style.top = '80px'; cont.style.width = '520px'; cont.style.maxHeight = '70vh'; cont.style.overflow = 'auto'; cont.style.background = 'white'; cont.style.border = '1px solid #e5e7eb'; cont.style.boxShadow = '0 8px 24px rgba(0,0,0,0.12)'; cont.style.zIndex = 99999; cont.style.padding = '12px'; cont.style.fontSize = '13px';
-
-            const header = document.createElement('div'); header.style.display = 'flex'; header.style.justifyContent = 'space-between'; header.style.alignItems = 'center';
-            const title = document.createElement('div'); title.innerHTML = `<strong>Detalhe YTD (${year} até ${['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][month]})</strong><div style="font-size:12px;color:#555">Agrupamento: ${groupBy}</div>`;
-            header.appendChild(title);
-            const close = document.createElement('button'); close.innerText = '×'; close.style.border = 'none'; close.style.background = 'transparent'; close.style.fontSize = '18px'; close.style.cursor = 'pointer'; close.onclick = () => cont.remove(); header.appendChild(close);
-            cont.appendChild(header);
-
-            const pre = document.createElement('pre'); pre.style.whiteSpace = 'pre-wrap'; pre.style.wordBreak = 'break-word'; pre.style.marginTop = '8px'; pre.textContent = JSON.stringify({ ytd, adm }, null, 2);
-            cont.appendChild(pre);
-
-            const copyBtn = document.createElement('button'); copyBtn.innerText = 'Copiar resumo'; copyBtn.style.marginTop = '8px'; copyBtn.style.padding = '8px 10px'; copyBtn.style.background = '#2563eb'; copyBtn.style.color = 'white'; copyBtn.style.border = 'none'; copyBtn.style.borderRadius = '6px'; copyBtn.onclick = () => { navigator.clipboard && navigator.clipboard.writeText(pre.textContent); this.showToast('Resumo copiado para a área de transferência.'); };
-            cont.appendChild(copyBtn);
-
-            document.body.appendChild(cont);
-            this.showToast('Painel Detalhe YTD aberto.');
-            return cont;
-        } catch (e) {
-            console.error('Erro abrindo painel YTD', e); this.showToast('Erro ao abrir painel YTD', true);
-        }
-    },
-
-    // Diagnostic helper: call from DevTools console to see how given budget codes map
-    debugMatchBudgetSamples(samples) {
-        if (!Array.isArray(samples)) samples = [samples];
-        const results = samples.map(code => {
-            const budgetAcc = String(code || '').trim();
-            const targetNorm = window.AppUtils.normalizeAccountString(budgetAcc);
-            const targetDigits = window.AppUtils.normalizeAccountDigits(budgetAcc);
-            let pc = null;
-            if (this.planoContas && this.planoContas.length > 0) {
-                pc = this.planoContas.find(p => window.AppUtils.normalizeAccountString(p.contaBudget || '') === targetNorm);
-                if (!pc) pc = this.planoContas.find(p => window.AppUtils.normalizeAccountString(p.contaReduzida || '') === targetNorm || window.AppUtils.normalizeAccountString(p.contaGrande || '') === targetNorm);
-                if (!pc && targetDigits) {
-                    pc = this.planoContas.find(p => {
-                        const pb = window.AppUtils.normalizeAccountDigits(p.contaBudget || '');
-                        const pr = window.AppUtils.normalizeAccountDigits(p.contaReduzida || '');
-                        const pg = window.AppUtils.normalizeAccountDigits(p.contaGrande || '');
-                        return (pb && pb === targetDigits) || (pr && pr === targetDigits) || (pg && pg === targetDigits);
+                Object.keys(valores).sort().forEach(ocra => {
+                    const tr = document.createElement('tr');
+                    const desc = ocraDesc[ocra] || '';
+                    let html = `<td class='px-3 py-2'>${ocra}</td><td class='px-3 py-2'>${desc}</td>`;
+                    departamentos.forEach(depto => {
+                        const valor = valores[ocra][depto] || 0;
+                        const valorFormatado = valor.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+                        const style = valor < 0 ? 'text-red-600' : 'text-gray-800';
+                        html += `<td class='px-3 py-2 text-right ${style}'>${valor !== 0 ? valorFormatado : '-'}</td>`;
                     });
-                }
+                    tr.innerHTML = html;
+                    tbody.appendChild(tr);
+                });
             }
-            return { input: budgetAcc, matched: !!pc, mapped: pc ? { contaReduzida: pc.contaReduzida, contaBudget: pc.contaBudget, descricao: pc.descricao } : null };
-        });
-        // Also print to an on-screen debug panel so output is visible without DevTools
-        try {
-            const containerId = 'budget-debug-console';
-            let container = document.getElementById(containerId);
-            if (!container) {
-                container = document.createElement('div');
-                container.id = containerId;
-                container.style.position = 'fixed';
-                container.style.right = '12px';
-                container.style.bottom = '12px';
-                container.style.width = '520px';
-                container.style.maxHeight = '60vh';
-                container.style.overflow = 'auto';
-                container.style.background = 'rgba(255,255,255,0.95)';
-                container.style.border = '1px solid #ccc';
-                container.style.boxShadow = '0 4px 12px rgba(0,0,0,0.12)';
-                container.style.zIndex = 99999;
-                container.style.fontSize = '12px';
-                container.style.padding = '8px';
-                const header = document.createElement('div');
-                header.style.display = 'flex';
-                header.style.justifyContent = 'space-between';
-                header.style.alignItems = 'center';
-                const title = document.createElement('strong');
-                title.innerText = `Budget Debug`;
-                const closeBtn = document.createElement('button');
-                closeBtn.innerText = '×';
-                closeBtn.style.border = 'none';
-                closeBtn.style.background = 'transparent';
-                closeBtn.style.fontSize = '18px';
-                closeBtn.style.cursor = 'pointer';
-                closeBtn.onclick = () => container.remove();
-                header.appendChild(title);
-                header.appendChild(closeBtn);
-                container.appendChild(header);
-                const pre = document.createElement('pre');
-                pre.style.whiteSpace = 'pre-wrap';
-                pre.style.wordBreak = 'break-word';
-                pre.style.marginTop = '8px';
-                pre.style.maxHeight = '52vh';
-                pre.style.overflow = 'auto';
-                pre.id = containerId + '-pre';
-                container.appendChild(pre);
-                document.body.appendChild(container);
-            }
-            const preEl = document.getElementById(containerId + '-pre');
-            if (preEl) preEl.textContent = JSON.stringify(results, null, 2);
-        } catch (e) {
-            // ignore UI errors
-        }
+        },
 
-        console.table(results);
-        return results;
-    },
-
-
-    // Todos os helpers de filtro e normalização agora estão em window.AppUtils (js/app-utils.js)
-
-    normalizePeriod(mes, ano) {
-        // Retorna chave normalizada 'M-Y' onde M e Y são números (ex: '1-2025')
-        let m = mes;
-        let y = ano;
-
-        if ((y === undefined || y === null || y === '') && typeof m === 'string' && m.includes('/')) {
-            const parts = m.split('/').map(s => s.trim()).filter(Boolean);
-            if (parts.length >= 2) {
-                m = parts[0];
-                y = parts[1];
-            }
-        }
-
-        // Se mês for texto (Jan/Fev) tenta converter
-        const parsed = AppUtils.parseMonthString(m);
-        if (parsed !== null) {
-            m = parsed;
-        } else {
-            // remove zeros à esquerda e não dígitos
-            m = String(m).trim();
-            m = m.replace(/^0+/, '');
-            const mm = Number(m);
-            if (!isNaN(mm) && mm >= 1 && mm <= 12) m = mm; // número
-        }
-
+        normalizePeriod(m, y) {
         // Ano: pegar últimos 4 dígitos se vier combinado
         if ((y === undefined || y === null || y === '') && typeof m === 'string' && m.includes('/')) {
             const parts = m.split('/').map(s => s.trim());

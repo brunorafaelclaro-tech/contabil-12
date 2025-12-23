@@ -113,3 +113,41 @@ Registro adicionado automaticamente pelo agente em 2025-12-23.
 - **Checklist rápido por PR:** backup branch, work branch `feat/...`, fallback, testes manuais (3 cenários), commit/push, abrir PR.  
 
 Arquivo atualizado para que você possa retomar quando quiser. (23-12-2025)
+
+**Plano Detalhado — Minimização do `js/script.js`**
+
+- **Meta:** transformar `js/script.js` em um orquestrador mínimo (routing + delegação). Alvo prático: manter o arquivo com apenas o contexto e delegações, visando < 100 linhas de lógica de controle.
+
+- **Sequência Prioritária:**
+  - **Backup:** criar branch de backup antes de qualquer mudança.
+  - **Auditoria:** mapear responsabilidades do `js/script.js` (imports, renderers, helpers, persistência, eventos DOM). Entregável: lista curta de dependências e funções públicas.
+  - **Config/Constantes:** consolidar constantes em `js/config/*` e garantir fallbacks seguros.
+  - **Renderers (B):** extrair renderers pesados DRE por aba para `js/aba-dre-<nome>.js` (PRs por aba). Cada renderer implementa `render(ctx)` e `init()` opcional.
+  - **Contrato de Renderers:** padronizar API mínima (`render(ctx)`, `getState()` opcional) e documentar no `PLANEJAMENTO.md`.
+  - **DataAPI (D):** implementar/expandir `js/data-api.js` com métodos `get/set/import/export` para `balanceData`, `savedImportedFiles`, `mgmtFees` e outros; substituir acessos diretos no código.
+  - **Helpers (C):** finalizar migração para `js/app-utils.js` e reduzir wrappers em `script.js` a chamadas diretas a `AppUtils`.
+  - **Refactor Final:** reescrever `script.js` para montar contexto mínimo e delegar aos módulos via `window.Aba*.render(ctx)`.
+  - **QA & Limpeza:** testes manuais em cenários críticos e remoção de código morto/arquivamento de comentários.
+
+- **Estimativas (orientativas):**
+  - Backup + auditoria: 0.5–1 h
+  - Cada renderer DRE: 1–2 h
+  - DataAPI: 1.5–3 h
+  - Refatorar `script.js`: 1–2 h
+  - QA e limpeza: 1–2 h
+
+- **Critérios de Aceitação (por PR):**
+  - Branch de backup criado e `push` realizado.
+  - Nenhum erro JS novo no Console após `npm start`.
+  - Cenário manual básico passa (import + render da aba alterada).
+  - `script.js` não contém lógica específica de renderer (apenas delegação).
+  - Fallbacks documentados quando `DataAPI` / `DreConfig` não estiverem presentes.
+
+- **Comandos úteis (PowerShell) — criar backup:**
+```powershell
+$ts = (Get-Date -Format 'yyyyMMdd-HHmmss')
+git checkout -b backup-before-script-minify-$ts
+git push -u origin HEAD
+```
+
+- **Próximo passo sugerido:** criar o branch de backup agora e rodar a auditoria rápida do `js/script.js` para gerar o mapa de dependências (posso fazer isso automaticamente se você autorizar). 

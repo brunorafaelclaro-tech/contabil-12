@@ -1,3 +1,23 @@
+// Wrapper module for DRE Departamento renderer — initial extraction
+(function(){
+    window.AbaDreDepartamento = {
+        render: function(viewId, ctx) {
+            try {
+                if (window.app && typeof window.app._renderDREDepartamentoLegacy === 'function') {
+                    // delegate to legacy implementation while we progressively move logic here
+                    return window.app._renderDREDepartamentoLegacy();
+                }
+            } catch (e) {
+                console.error('AbaDreDepartamento.render failed delegating to legacy', e);
+            }
+            // minimal fallback: clear the container
+            try {
+                const tbody = document.getElementById('dre-departamento-body');
+                if (tbody) tbody.innerHTML = '';
+            } catch (e) {}
+        }
+    };
+})();
 
 // Módulo da aba DRE Departamento (extraído do legado em script.js)
 const AbaDreDepartamento = {
