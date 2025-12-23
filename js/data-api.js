@@ -1,3 +1,12 @@
+        // --- Key Ratios Budget helpers ---
+        setKeyRatiosBudget(app, list, { persist = true, render = true } = {}) {
+            if (!app) return;
+            app.keyRatiosBudgetData = Array.isArray(list) ? list : [];
+            if (persist && typeof app.saveToStorage === 'function') {
+                try { app.saveToStorage(); } catch(e) { console.warn('DataAPI.setKeyRatiosBudget: saveToStorage failed', e); }
+            }
+            // Não há renderizador dedicado para budget, mas pode-se adicionar aqui se necessário
+        },
 (function(){
     // Pequena API para encapsular operações sobre app.data e outros datasets (receita/despesa/keyRatios)
     // Objetivo: fornecer pontos de acesso padronizados sem alterar comportamento atual.

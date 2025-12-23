@@ -156,12 +156,17 @@
         confirmKeyRatiosBudgetImport(app) {
             // Replace KeyRatiosBudget entries only for the imported periods (mes-ano)
             const periodsToReplaceBudget = new Set((app.tempData || []).map(item => app.normalizePeriod(item.mes, item.ano)));
-            app.keyRatiosBudgetData = (app.keyRatiosBudgetData || []).filter(item => {
+            let newList = (app.keyRatiosBudgetData || []).filter(item => {
                 const period = app.normalizePeriod(item.mes, item.ano);
                 return !periodsToReplaceBudget.has(String(period));
             });
-            app.keyRatiosBudgetData = [...(app.keyRatiosBudgetData || []), ...(app.tempData || [])];
-            app.saveToStorage();
+            newList = [...newList, ...(app.tempData || [])];
+            if (window.DataAPI && typeof DataAPI.setKeyRatiosBudget === 'function') {
+                DataAPI.setKeyRatiosBudget(app, newList);
+            } else {
+                app.keyRatiosBudgetData = newList;
+                if (app.saveToStorage) app.saveToStorage();
+            }
             app.showToast(`${(app.tempData || []).length} Key Ratios Budget salvos.`);
             app.cancelImport();
             app.switchTab('dre-budget-2');
