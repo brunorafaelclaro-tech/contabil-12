@@ -467,3 +467,479 @@ window.AbaDreDepartamento.prepareCtx = function(appRef) {
   };
   return ctx;
 };
+
+  // Computa os valores do DRE (sem renderizar DOM) e retorna mapa { ocra: { dept: valor } }
+  window.AbaDreDepartamento.computeDREValues = function(contexto) {
+    try {
+      const data = contexto.data || [];
+      const planoContas = contexto.planoContas || [];
+      const mgmtFees = contexto.mgmtFees || [];
+      const mgmtDetailData = contexto.mgmtDetailData || {};
+      const keyRatiosData = contexto.keyRatiosData || [];
+      const balanceData = contexto.balanceData || [];
+      const exemptCCs = contexto.exemptCCs || [];
+      const dreDeptLayout = contexto.dreDeptLayout || [];
+      const year = Number(contexto.year) || (new Date()).getFullYear();
+      const month = Number(contexto.month) || (new Date()).getMonth() + 1;
+      const type = contexto.type || 'accumulated';
+
+      // Mapeia conta contábil -> OCRA
+      const contabilToOcra = {};
+      const ocraDesc = {};
+      (planoContas || []).forEach(pc => {
+        const red = String(pc.contaReduzida || '').trim();
+        const ocra = String(pc.contaOCRA || '').trim();
+        if (red && ocra) {
+          contabilToOcra[red] = ocra;
+          if (!ocraDesc[ocra]) ocraDesc[ocra] = pc.ocraDesc || pc.descricao || '';
+        }
+      });
+
+      const normalize = (s => String(s||'').replace(/\D/g, ''));
+      const filteredData = (data || []).filter(item => {
+        if (String(item.tipo || '').trim() === 'Budget') return false;
+        if (!item.ano || !item.mes) return false;
+        if (String(item.ano) !== String(year)) return false;
+        const itemMonth = parseInt(item.mes);
+        let ocra = item.contaOCRA ? String(item.contaOCRA).trim() : '';
+        if (!ocra) ocra = contabilToOcra[String(item.conta).trim()] || String(item.conta).trim();
+        const firstDigit = ocra.charAt(0);
+        const isBalanceSheet = ['1','2'].includes(firstDigit);
+        if (type === 'monthly') return itemMonth === month;
+        if (isBalanceSheet) return itemMonth === month;
+        return itemMonth <= month;
+      });
+
+      const valores = {};
+      const dynamicTax = {};
+      const deptosSet = new Set();
+
+      // Key ratios
+      const consultantCounts = {};
+      let totalConsultants = 0;
+      const filteredKeyRatios = (keyRatiosData || []).filter(item => {
+        if (!item.ano || !item.mes) return false;
+        if (String(item.ano) !== String(year)) return false;
+        const itemMonth = parseInt(item.mes);
+        if (type === 'monthly') return itemMonth === month;
+        return itemMonth <= month;
+      });
+      filteredKeyRatios.forEach(kr => {
+        const depto = String(kr.departamento || '').trim(); if (!depto) return;
+        if (!consultantCounts[depto]) consultantCounts[depto] = 0; consultantCounts[depto] += 1; totalConsultants += 1; deptosSet.add(depto);
+      });
+
+      // Mgmt detail
+      if (mgmtDetailData && mgmtDetailData[year] && totalConsultants > 0) {
+        const detailData = mgmtDetailData[year];
+        ['ocra','calc'].forEach(rowKey => {
+          const rowData = detailData[rowKey]; if (!rowData) return;
+          let rowValue = 0;
+          if (type === 'monthly') rowValue = Number(rowData.values[month]) || 0; else { for (let m=1;m<=month;m++) rowValue += Number(rowData.values[m]) || 0; }
+          if (rowValue === 0) return;
+          if (rowData.debit) {
+            const acc = String(rowData.debit).trim(); if (!valores[acc]) valores[acc] = {};
+            Object.keys(consultantCounts).forEach(depto => { const share = (consultantCounts[depto] / totalConsultants) * rowValue; if (!valores[acc][depto]) valores[acc][depto]=0; valores[acc][depto]+=share; });
+          }
+          if (rowData.credit) {
+            const acc = String(rowData.credit).trim(); if (!valores[acc]) valores[acc] = {};
+            Object.keys(consultantCounts).forEach(depto => { const share = (consultantCounts[depto] / totalConsultants) * rowValue * -1; if (!valores[acc][depto]) valores[acc][depto]=0; valores[acc][depto]+=share; });
+          }
+        });
+      }
+
+      (filteredData || []).forEach(item => {
+        if (!item.conta) return;
+        const depto = String(item.departamento || '').trim(); if (depto) deptosSet.add(depto);
+        const contaOriginal = String(item.conta).trim(); const contaNum = Number(item.conta);
+        let ocra = item.contaOCRA ? String(item.contaOCRA).trim() : '';
+        if (!ocra) ocra = contabilToOcra[contaOriginal] || contaOriginal;
+        const valor = Number(item.valor) || 0;
+        if (contaNum === 1902) {
+          const ccToCheck = String(item.centroCusto || '').trim(); const isExempt = (exemptCCs||[]).includes(ccToCheck);
+          if (!isExempt) { const taxValue = valor * -0.0925; if (!dynamicTax[depto]) dynamicTax[depto] = 0; dynamicTax[depto] += taxValue; }
+        }
+        const ignoredAccounts = ['8010','8022','8300','8360','8331','8390','8072','8400','8412','8460','8436','8490','8893','8820','8821','8828','8829','8890','8810','8935','8940','8980'];
+        if (ignoredAccounts.includes(ocra) || ignoredAccounts.includes(String(contaNum))) return;
+        if (ocra === '3204' || contaNum === 3204) return;
+        if (ocra === '6430' || contaNum === 6430) return;
+        if (!valores[ocra]) valores[ocra] = {};
+        if (!valores[ocra][depto]) valores[ocra][depto] = 0;
+        valores[ocra][depto] += valor;
+      });
+
+      Object.keys(dynamicTax).forEach(depto => { if (!valores['3204']) valores['3204'] = {}; if (!valores['3204'][depto]) valores['3204'][depto] = 0; valores['3204'][depto] += dynamicTax[depto]; });
+
+      const filteredBalance = (balanceData || []).filter(item => { if (!item.ano || !item.mes) return false; if (String(item.ano) !== String(year)) return false; const itemMonth = parseInt(item.mes); return itemMonth === month; });
+      filteredBalance.forEach(item => { const ocra = String(item.contaOCRA || item.contaReduzida || '').trim(); if (!ocra) return; if (!valores[ocra]) valores[ocra] = {}; if (!valores[ocra]['BS/IT']) valores[ocra]['BS/IT'] = 0; valores[ocra]['BS/IT'] += Number(item.saldoFinal) || 0; });
+      deptosSet.add('BS/IT');
+
+      // Agora iteramos o layout e calculamos os valores finais conforme DRE (sem DOM)
+      const departamentos = (() => { let arr = Array.from(deptosSet).sort(); arr = arr.filter(d => d !== 'BS/IT' && d !== 'ADM'); arr.unshift('BS/IT'); if (deptosSet.has('ADM')) arr.push('ADM'); return arr; })();
+
+      const dreMap = {};
+      const savedTotals = {};
+      let currentSectionTotal = {};
+      let invertValues = false;
+
+      // Monta um layout local igual ao render (possível AVERAGE_FEE adicionado)
+      const layout = [];
+      for (const row of (dreDeptLayout || [])) {
+        layout.push(row);
+        if (row.id === 'total_equity_liab') {
+          layout.push({ type: 'header', description: 'Key Ratios', bg: 'bg-blue-100' });
+          layout.push({ type: 'account', code: 'KR_HEADS_CONS', description: 'Heads Consultants', precision: 0 });
+          layout.push({ type: 'account', code: 'KR_HEADS_ADM', description: 'Heads ADM', precision: 0 });
+          layout.push({ type: 'account', code: 'KR_HOURS', description: 'Total hours' });
+          layout.push({ type: 'account', code: 'AVERAGE_FEE', description: 'Average Fee' });
+        }
+      }
+
+      layout.forEach(row => {
+        if (row.id === 'total_income') invertValues = true;
+        if (row.type === 'account') {
+          const ocra = String(row.code).trim();
+          departamentos.forEach(depto => {
+            if (!dreMap[ocra]) dreMap[ocra] = {};
+            let valor = 0;
+            if (['8820','8821'].includes(ocra)) { if (depto === 'BS/IT') { valor = (valores[ocra]) ? Object.values(valores[ocra]).reduce((a,b)=>a+(Number(b)||0),0) : 0; } else { valor = 0; } }
+            else if (depto === 'BS/IT') { const firstDigit = ocra.charAt(0); if (['3','4','5','6','7'].includes(firstDigit)) { valor = 0; } else { valor = (valores[ocra] && valores[ocra]['BS/IT']) ? valores[ocra]['BS/IT'] : 0; } }
+            else { valor = (valores[ocra] && valores[ocra][depto]) ? valores[ocra][depto] : 0; const firstDigit = ocra.charAt(0); if (['8','9'].includes(firstDigit)) valor = 0; }
+            if (ocra === '3010') { if (depto === 'ADM') { valor = 0; } else { let totalRevenue = 0; const revenueAccounts = ['3010','3556','3557','3015','3095','3019','3018','3030','3204']; revenueAccounts.forEach(acc => { let valAcc = 0; if (depto === 'BS/IT') valAcc = 0; else valAcc = (valores[acc] && valores[acc][depto]) ? valores[acc][depto] : 0; totalRevenue += valAcc; }); valor = totalRevenue; } }
+
+            // Aplicar inversão similar ao render
+            if (invertValues) {
+              const isFinancialIncome = ['8010','8022','8300','8360','8331','8390'].includes(ocra);
+              if (depto === 'BS/IT' && ['8300','8331','8010','8022','8360','8390'].includes(ocra)) { valor = Math.abs(valor); }
+              else if (!isFinancialIncome && !ocra.startsWith('KR_')) valor = valor * -1;
+            }
+
+            // Average Fee sempre positivo
+            if (ocra === 'AVERAGE_FEE') valor = Math.abs(valor);
+
+            dreMap[ocra][depto] = (dreMap[ocra][depto] || 0) + valor;
+            if (valor !== 0) currentSectionTotal[depto] = (currentSectionTotal[depto] || 0) + valor;
+          });
+
+          // Mantém savedTotals quando necessário
+          if (row.type === 'account' && row.id) {
+            if (!savedTotals[row.id]) savedTotals[row.id] = {};
+            departamentos.forEach(depto => { savedTotals[row.id][depto] = dreMap[row.code] ? (dreMap[row.code][depto] || 0) : 0; });
+          }
+        } else if (row.type === 'total' || row.type === 'calculation') {
+          if (row.id) savedTotals[row.id] = { ...currentSectionTotal };
+          currentSectionTotal = {};
+          if (row.description === 'Net profit or loss for the year') invertValues = false;
+        }
+      });
+
+      // Ajustes finais para AVERAGE_FEE usando savedTotals e KR_HOURS
+      if (dreMap['AVERAGE_FEE']) {
+        let totalIncomeConsolidated = 0, totalHoursConsolidated = 0;
+        if (savedTotals['total_income']) Object.keys(savedTotals['total_income']).forEach(d => totalIncomeConsolidated += Number(savedTotals['total_income'][d]||0));
+        if (valores['KR_HOURS']) Object.keys(valores['KR_HOURS']).forEach(d => totalHoursConsolidated += Number(valores['KR_HOURS'][d]||0));
+        const avg = (totalHoursConsolidated && totalHoursConsolidated !== 0) ? (totalIncomeConsolidated / totalHoursConsolidated) : 0;
+        departamentos.forEach(depto => { dreMap['AVERAGE_FEE'][depto] = avg; });
+      }
+
+      return { dreMap, valores, savedTotals };
+    } catch (e) {
+      console.error('computeDREValues failed', e);
+      return { dreMap: {}, valores: {}, savedTotals: {} };
+    }
+  };
+// Extrai a geração do relatório OCRA para este módulo.
+window.AbaDreDepartamento.generateOcraReport = function(appRef) {
+  try {
+    const ctx = (typeof window.AbaDreDepartamento.prepareCtx === 'function') ? window.AbaDreDepartamento.prepareCtx(appRef) : {
+      year: (new Date()).getFullYear(),
+      month: (new Date()).getMonth() + 1,
+      data: appRef.data || [],
+      planoContas: appRef.planoContas || [],
+      keyRatiosData: appRef.keyRatiosData || [],
+      mgmtDetailData: appRef.mgmtDetailData || {},
+      mgmtFees: appRef.mgmtFees || [],
+      balanceData: appRef.balanceData || [],
+      exemptCCs: appRef.exemptCCs || [],
+      dreDeptLayout: appRef.dreDeptLayout || [],
+      ocraConfig: appRef.ocraConfig || []
+    };
+
+    // Reaproveita a mesma lógica que existia no script.js, mas usando o contexto
+    const yearEl = document.getElementById('ocra-export-year');
+    const monthEl = document.getElementById('ocra-export-month');
+    if (!yearEl || !monthEl) {
+      if (appRef && typeof appRef.showToast === 'function') appRef.showToast("Erro: Filtros de exportação não encontrados.", true);
+      return;
+    }
+
+    const selectedYear = parseInt(yearEl.value);
+    const selectedMonth = parseInt(monthEl.value);
+    const selectedType = 'ytd';
+
+    // Garantir que o contexto usado por computeDREValues reflita os filtros de export (OCRA)
+    try {
+      if (ctx) {
+        ctx.year = selectedYear;
+        ctx.month = selectedMonth;
+        ctx.type = selectedType;
+      }
+    } catch (e) {
+      console.warn('Não foi possível sobrescrever ctx.year/ctx.month para export OCRA', e);
+    }
+
+    const normalize = (typeof ctx.normalizeAccountDigits === 'function') ? ctx.normalizeAccountDigits : (s => String(s || '').replace(/\D/g, ''));
+    const contabilToOcra = {};
+    (ctx.planoContas || []).forEach(p => {
+      if (p.contaReduzida && p.contaOCRA) {
+        const key = String(normalize(String(p.contaReduzida))).trim();
+        contabilToOcra[key] = String(p.contaOCRA).trim();
+      }
+    });
+
+    // Debug helpers (temporários) - habilitar definindo `app.ocraDebug = true`
+    const _ocraDebugContribs = [];
+    // Detecta flag de debug também em `window.app.ocraDebug` ou `window.ocraDebug` para casos
+    // em que o stub inicial foi sobrescrito por `window.app = app` durante a inicialização.
+    const _ocraDebug = !!(
+      (appRef && appRef.ocraDebug) ||
+      (typeof window !== 'undefined' && window.app && window.app.ocraDebug) ||
+      (typeof window !== 'undefined' && window.ocraDebug)
+    );
+
+    const filteredData = (ctx.data || []).filter(item => {
+      if (!item.ano || !item.mes) return false;
+      if (String(item.ano) !== String(selectedYear)) return false;
+      const itemMonth = parseInt(item.mes);
+      return itemMonth <= selectedMonth;
+    });
+
+    const valores = {};
+    const deptosSet = new Set();
+
+    const consultantCounts = {};
+    let totalConsultants = 0;
+    const filteredKeyRatios = (ctx.keyRatiosData || []).filter(item => {
+      if (String(item.ano) !== String(selectedYear)) return false;
+      const itemMonth = parseInt(item.mes);
+      return selectedType === 'monthly' ? itemMonth === selectedMonth : itemMonth <= selectedMonth;
+    });
+    filteredKeyRatios.forEach(kr => {
+      const depto = String(kr.departamento || '').trim();
+      if (depto) {
+        if (!consultantCounts[depto]) consultantCounts[depto] = 0;
+        consultantCounts[depto] += 1;
+        totalConsultants += 1;
+        deptosSet.add(depto);
+      }
+    });
+
+    if (ctx.mgmtDetailData && ctx.mgmtDetailData[selectedYear] && totalConsultants > 0) {
+      const detailData = ctx.mgmtDetailData[selectedYear];
+      ['ocra','calc'].forEach(rowKey => {
+        const rowData = detailData[rowKey]; if (!rowData) return;
+        let rowValue = 0;
+        if (selectedType === 'monthly') rowValue = Number(rowData.values[selectedMonth]) || 0; else { for (let m=1;m<=selectedMonth;m++) rowValue += Number(rowData.values[m]) || 0; }
+        if (rowValue === 0) return;
+        if (rowData.debit) {
+          const acc = String(rowData.debit).trim(); if (!valores[acc]) valores[acc] = {};
+          Object.keys(consultantCounts).forEach(depto => { const share = (consultantCounts[depto] / totalConsultants) * rowValue; if (!valores[acc][depto]) valores[acc][depto]=0; valores[acc][depto]+=share; });
+        }
+        if (rowData.credit) {
+          const acc = String(rowData.credit).trim(); if (!valores[acc]) valores[acc] = {};
+          Object.keys(consultantCounts).forEach(depto => { const share = (consultantCounts[depto] / totalConsultants) * rowValue * -1; if (!valores[acc][depto]) valores[acc][depto]=0; valores[acc][depto]+=share; });
+        }
+      });
+    }
+
+    const dynamicTax = {};
+    (filteredData || []).forEach(item => {
+      if (!item.conta || !item.departamento) return;
+      const depto = String(item.departamento || '').trim(); if (depto) deptosSet.add(depto);
+      const contaOriginalRaw = String(item.conta).trim();
+      const contaOriginal = String(normalize(contaOriginalRaw)).trim();
+      const contaNum = Number(contaOriginalRaw);
+      let ocra = item.contaOCRA ? String(item.contaOCRA).trim() : '';
+      if (!ocra) ocra = contabilToOcra[contaOriginal] || contaOriginal;
+      const valor = Number(item.valor) || 0;
+      if (_ocraDebug) _ocraDebugContribs.push({ contaOriginalRaw, contaOriginal, contaNum, ocra, depto, valor, centroCusto: item.centroCusto, contaOCRA: item.contaOCRA });
+      if (contaNum === 1902) {
+        const ccToCheck = String(item.centroCusto || '').trim(); const isExempt = (ctx.exemptCCs||[]).includes(ccToCheck);
+        if (!isExempt) { const taxValue = valor * -0.0925; if (!dynamicTax[depto]) dynamicTax[depto] = 0; dynamicTax[depto] += taxValue; }
+      }
+      const ignoredAccounts = ['8010','8022','8300','8360','8331','8390','8072','8400','8412','8460','8436','8490','8893','8820','8821','8828','8829','8890','8810','8935','8940','8980'];
+      if (ignoredAccounts.includes(ocra) || ignoredAccounts.includes(String(contaNum))) return;
+      if (ocra === '3204' || contaNum === 3204) return;
+      if (ocra === '6430' || contaNum === 6430) return;
+      if (!valores[ocra]) valores[ocra] = {};
+      if (!valores[ocra][depto]) valores[ocra][depto] = 0;
+      valores[ocra][depto] += valor;
+    });
+
+    Object.keys(dynamicTax).forEach(depto => { if (!valores['3204']) valores['3204'] = {}; if (!valores['3204'][depto]) valores['3204'][depto] = 0; valores['3204'][depto] += dynamicTax[depto]; });
+
+    // Debug output: mapa, contribuições e totais por OCRA
+    if (_ocraDebug) {
+      try {
+        console.group('AbaDreDepartamento OCRA Debug', selectedYear, selectedMonth);
+        console.log('contabilToOcra (map) ->', contabilToOcra);
+        console.log('contribuicoes (amostra, primeiro 200) ->', _ocraDebugContribs.slice(0,200));
+        console.log('valores (por OCRA -> por depto) ->', valores);
+        console.log('dynamicTax ->', dynamicTax);
+        const _ocraTotals = {};
+        Object.keys(valores).forEach(k => { _ocraTotals[k] = Object.values(valores[k]||{}).reduce((a,b)=>a+(Number(b)||0),0); });
+        console.log('ocraTotals (soma por OCRA) ->', _ocraTotals);
+        console.groupEnd();
+      } catch (e) { console.warn('Erro ao imprimir debug OCRA', e); }
+    }
+
+    const filteredBalance = (ctx.balanceData || []).filter(item => { if (!item.ano || !item.mes) return false; if (String(item.ano) !== String(selectedYear)) return false; const itemMonth = parseInt(item.mes); return itemMonth === selectedMonth; });
+    filteredBalance.forEach(item => { const ocra = String(item.contaOCRA || item.contaReduzida || '').trim(); if (!ocra) return; if (!valores[ocra]) valores[ocra] = {}; if (!valores[ocra]['BS/IT']) valores[ocra]['BS/IT'] = 0; valores[ocra]['BS/IT'] += Number(item.saldoFinal) || 0; });
+    deptosSet.add('BS/IT');
+
+    let departamentos = Array.from(deptosSet).sort(); departamentos = departamentos.filter(d => d !== 'BS/IT' && d !== 'ADM'); departamentos.unshift('BS/IT'); if (deptosSet.has('ADM')) departamentos.push('ADM');
+
+    let ocraConfigList = ctx.ocraConfig || [];
+    if (!Array.isArray(ocraConfigList)) { if (ocraConfigList && ocraConfigList.companyNum) ocraConfigList = [ocraConfigList]; else ocraConfigList = []; }
+
+    // Em vez de recalcular aqui, usamos computeDREValues para garantir paridade exata com o que
+    // é mostrado na tela DRE Departamento. computeDREValues aplica as mesmas regras de layout,
+    // inversões e cálculos auxiliares (dynamicTax, mgmtDetail, AVERAGE_FEE etc.).
+    const exportList = [];
+    const tableBody = document.getElementById('ocra-report-body'); if (tableBody) tableBody.innerHTML = '';
+    const admConfig = ocraConfigList.find(c => c.department === 'ADM') || {}; const admCompanyNum = admConfig.companyNum || '';
+
+    // Computa DRE values com a função reutilizável
+    const { dreMap } = window.AbaDreDepartamento.computeDREValues(ctx);
+
+    // Itera dreMap para construir exportList (Account x Departamento) aplicando normalização de sinais
+    Object.keys(dreMap || {}).forEach(acc => {
+      // Excluir conta 3204 da exportação
+      if (String(acc).trim() === '3204') return;
+      Object.keys(dreMap[acc] || {}).forEach(depto => {
+        const companyNum = (ocraConfigList.find(c => c.department === depto) || {}).companyNum || admCompanyNum || '';
+        const deptNum = (ocraConfigList.find(c => c.department === depto) || {}).deptNum || '';
+        const raw = Number(dreMap[acc][depto] || 0);
+        let norm = (typeof window.applyOcraSignRule === 'function') ? window.applyOcraSignRule(acc, raw) : raw;
+        // Forçar inversão de 4040 na coluna ADM conforme regra específica
+        if (String(acc).trim() === '4040' && String(depto).trim() === 'ADM') {
+          norm = -Math.abs(norm);
+        }
+        if (norm !== 0) {
+          exportList.push({ Company: companyNum, Departamento: deptNum, Account: acc, Amount: norm });
+        }
+      });
+    });
+
+    // Antes de exportar, garantir que as contas P&L listadas usem os valores do DRE (para paridade com a tela)
+    const forceAccounts = ['3010','4040','4730','5010','6110','6990','7004','7110','7210','7500','7615','7850','7860'];
+    // Reconstruir exportMap a partir de dreMap para evitar qualquer discrepância
+    const finalExportMap = {};
+    Object.keys(dreMap || {}).forEach(acc => {
+      // Excluir conta 3204 da exportação
+      if (String(acc).trim() === '3204') return;
+      Object.keys(dreMap[acc] || {}).forEach(depto => {
+        const key = acc + '||' + depto;
+        finalExportMap[key] = Number(dreMap[acc][depto] || 0);
+      });
+    });
+
+    // Recria exportList garantindo paridade com dreMap e aplicando normalização de sinais
+    const enforcedExportList = [];
+    Object.keys(finalExportMap).forEach(k => {
+      const parts = k.split('||'); const acc = parts[0] || ''; const dept = parts[1] || '';
+      const companyNum = (ocraConfigList.find(c => c.department === dept) || {}).companyNum || admCompanyNum || '';
+      const deptNum = (ocraConfigList.find(c => c.department === dept) || {}).deptNum || '';
+      const raw = finalExportMap[k];
+      let norm = (typeof window.applyOcraSignRule === 'function') ? window.applyOcraSignRule(acc, raw) : raw;
+      if (String(acc).trim() === '4040' && String(dept).trim() === 'ADM') {
+        norm = -Math.abs(norm);
+      }
+      enforcedExportList.push({ Company: companyNum, Departamento: deptNum, Account: acc, Amount: norm });
+    });
+
+    // Preenche preview de até 100 linhas com a lista forçada
+    if (tableBody) {
+      enforcedExportList.slice(0,100).forEach(r => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td class="px-3 py-2">${r.Company}</td><td class="px-3 py-2">${r.Departamento}</td><td class="px-3 py-2">${r.Account}</td><td class="px-3 py-2 text-right">${Number(r.Amount).toLocaleString('pt-BR',{minimumFractionDigits:2})}</td>`;
+        tableBody.appendChild(tr);
+      });
+    }
+
+    if (!tableBody && exportList.length === 0) {
+      if (appRef && typeof appRef.showToast === 'function') appRef.showToast('Nenhum dado encontrado para os filtros selecionados.', true);
+      return;
+    }
+
+    // Se habilitado debug forçado, gere um arquivo com 3 abas: Export / DRE Values / Diff
+    try {
+      // Forçar modo debug para sempre gerar a comparação (Diff) durante investigação
+      // Isso assegura que o arquivo exportado contenha 'OCRA Export', 'DRE Values' e 'Diff'
+      // permitindo identificar rapidamente discrepâncias sem usar o console.
+      const shouldDebugForce = false;
+      if (shouldDebugForce) {
+        // Computa DRE values via helper
+        const { dreMap } = window.AbaDreDepartamento.computeDREValues(ctx);
+
+        // Flatten exportList into map for comparison
+        const exportMap = {};
+        exportList.forEach(row => {
+          const acc = String(row.Account || '').trim();
+          const dept = String(row.Departamento || '').trim();
+          const key = acc + '||' + dept;
+          exportMap[key] = (exportMap[key] || 0) + Number(row.Amount || 0);
+        });
+
+        // Build sheets data
+        const exportSheet = exportList.map(r => ({ Company: r.Company, Departamento: r.Departamento, Account: r.Account, Amount: Number(r.Amount) }));
+
+        const dreRows = [];
+        Object.keys(dreMap || {}).forEach(acc => {
+              // Excluir conta 3204 da exportação
+              if (String(acc).trim() === '3204') return;
+              Object.keys(dreMap[acc] || {}).forEach(depto => {
+                dreRows.push({ Account: acc, Departamento: depto, DRE_Value: Number(dreMap[acc][depto] || 0) });
+              });
+            });
+
+        // Build diff rows (union of keys)
+        const allKeys = new Set();
+        exportSheet.forEach(r => allKeys.add(r.Account + '||' + r.Departamento));
+        dreRows.forEach(r => allKeys.add(r.Account + '||' + r.Departamento));
+
+        const diffRows = [];
+        allKeys.forEach(k => {
+          const parts = k.split('||');
+          const acc = parts[0] || '';
+          const dept = parts[1] || '';
+          const exp = exportMap[k] || 0;
+          const dreVal = (dreMap[acc] && dreMap[acc][dept]) ? Number(dreMap[acc][dept]) : 0;
+          diffRows.push({ Account: acc, Departamento: dept, DRE_Value: dreVal, Export_Value: exp, Delta: (exp - dreVal) });
+        });
+
+        const wb = XLSX.utils.book_new();
+        const ws1 = XLSX.utils.json_to_sheet(exportSheet);
+        const ws2 = XLSX.utils.json_to_sheet(dreRows);
+        const ws3 = XLSX.utils.json_to_sheet(diffRows);
+        XLSX.utils.book_append_sheet(wb, ws1, 'OCRA Export');
+        XLSX.utils.book_append_sheet(wb, ws2, 'DRE Values');
+        XLSX.utils.book_append_sheet(wb, ws3, 'Diff');
+        XLSX.writeFile(wb, `OCRA_Comparison_${selectedYear}_${selectedMonth}.xlsx`);
+        if (appRef && typeof appRef.showToast === 'function') appRef.showToast(`Comparação OCRA gerada (Diff: ${diffRows.length} linhas).`);
+      } else {
+        const ws = XLSX.utils.json_to_sheet(exportList);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "OCRA Report");
+        XLSX.writeFile(wb, `OCRA_Report_${selectedYear}_${selectedMonth}.xlsx`);
+        if (appRef && typeof appRef.showToast === 'function') appRef.showToast(`Relatório gerado com ${exportList.length} linhas.`);
+      }
+    } catch (e) {
+      console.error('Erro ao gerar arquivo OCRA/debug', e);
+      if (appRef && typeof appRef.showToast === 'function') appRef.showToast('Erro ao gerar relatório OCRA.', true);
+    }
+  } catch (err) {
+    console.error('AbaDreDepartamento.generateOcraReport failed', err);
+    if (appRef && typeof appRef.showToast === 'function') appRef.showToast('Erro ao gerar relatório OCRA.', true);
+  }
+};

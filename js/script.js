@@ -1,1253 +1,114 @@
 
 // Helpers, filtros e renderizações centralizados em módulos e AppUtils.
 
-
-
 const app = {
-
-    // Limpa todos os filtros da aba DRE
-    clearDREFilters() {
-        const ids = [
-            'dre-filter-cc',
-            'dre-filter-dept',
-            'dre-filter-client',
-            'dre-filter-sbd',
-            'dre-filter-proj'
-        ];
-        ids.forEach(id => {
-            const el = document.getElementById(id);
-            if (el) {
-                el.value = '';
-                el.dispatchEvent(new Event('change', { bubbles: true }));
-            }
-        });
-        this.applyFilterDependencies('dre', true);
-        this.renderDRE();
-    },
-
-    // Limpa todos os filtros da aba DRE Acumulado
-    clearDREAcumuladoFilters() {
-        const ids = [
-            'dre-acc-cc',
-            'dre-acc-dept',
-            'dre-acc-client',
-            'dre-acc-sbd',
-            'dre-acc-proj'
-        ];
-        ids.forEach(id => {
-            const el = document.getElementById(id);
-            if (el) {
-                el.value = '';
-                el.dispatchEvent(new Event('change', { bubbles: true }));
-            }
-        });
-        this.applyFilterDependencies('dre-acc', true);
-        this.renderDREAcumulado();
-    },
-
-            // Limpa todos os filtros da aba DRE Budget-2
-    clearDREBudget2Filters() {
-        const ids = [
-            'dre-b2-cc',
-            'dre-b2-dept',
-            'dre-b2-client',
-            'dre-b2-sbd',
-            'dre-b2-proj'
-        ];
-        ids.forEach(id => {
-            const el = document.getElementById(id);
-            if (el) {
-                el.value = '';
-                el.dispatchEvent(new Event('change', { bubbles: true }));
-            }
-        });
-        this.applyFilterDependencies('dre-b2', true);
-        this.renderDREBudget2();
-    },
-        // Limpa todos os filtros da aba Margem
-    clearMarginFilters() {
-        const ids = [
-            'margin-filter-cc',
-            'margin-filter-dept',
-            'margin-filter-client',
-            'margin-filter-sbd',
-            'margin-filter-proj'
-        ];
-        ids.forEach(id => {
-            const el = document.getElementById(id);
-            if (el) {
-                el.value = 'Todos...';
-                el.dispatchEvent(new Event('change', { bubbles: true }));
-            }
-        });
-        this.applyFilterDependencies('margin', true);
-        this.renderMarginAnalysis();
-    },
-    data: [],
-    centrosCusto: [], // Lista de centros de custo (Project ID mapping)
-    planoContas: [], 
-    balanceData: [], // Dados de Balanço e Pos EBIT
-    locks: [], 
-    mgmtFees: [], 
-    mgmtDetailData: {}, // Dados detalhados de Management Fee (Ocra/Calc)
-    _mgmtSaveTimer: null,
-    ocraConfig: [], // Configuração de Cadastro OCRA (Lista de objetos)
-    exemptCCs: [], 
-    // keyRatiosData: [], // Substituído por DataAPI.getKeyRatiosData/app.keyRatiosData
-        keyRatiosBudgetData: [],
-        // Configurável: contas do Budget que devem sempre ser tratadas como RECEITA (forçar classificação)
-        budgetRevenueAccounts: [],
-        // Contas permitidas como receita quando departamento === 'ADM'
-        admRevenueAllowedAccounts: ['1899','1902','1945','1953','1961','3204','3212'],
-    tempData: [], 
-    currentImportType: 'KeyRatios', 
-    currentDREExportData: [], 
-    currentDREAcumuladoExportData: [],
-    marginExclusionFilter: [], 
-    isAdmAllocationEnabled: false, // Estado do botão de rateio ADM
-    isAdmAllocationSueciaEnabled: false, // Estado do botão de rateio ADM Suécia
-
-    // Layout do DRE Departamento (extraído para js/config/dre-config.js)
-    dreDeptLayout: (window.DreConfig && window.DreConfig.dreDeptLayout) || [],
-
-    // Grupos de contas (extraídos para js/config/dre-config.js)
-    custoAccounts: (window.DreConfig && window.DreConfig.accountGroups && window.DreConfig.accountGroups.custoAccounts) || [],
-    depreciacaoAccounts: (window.DreConfig && window.DreConfig.accountGroups && window.DreConfig.accountGroups.depreciacaoAccounts) || [],
-    pessoalAccounts: (window.DreConfig && window.DreConfig.accountGroups && window.DreConfig.accountGroups.pessoalAccounts) || [],
-    aluguelAccounts: (window.DreConfig && window.DreConfig.accountGroups && window.DreConfig.accountGroups.aluguelAccounts) || [],
-    viagensAccounts: (window.DreConfig && window.DreConfig.accountGroups && window.DreConfig.accountGroups.viagensAccounts) || [],
-    deductionAccounts: (window.DreConfig && window.DreConfig.accountGroups && window.DreConfig.accountGroups.deductionAccounts) || [],
-    diversasAccounts: (window.DreConfig && window.DreConfig.accountGroups && window.DreConfig.accountGroups.diversasAccounts) || [],
-    servicosProfissionaisAccounts: (window.DreConfig && window.DreConfig.accountGroups && window.DreConfig.accountGroups.servicosProfissionaisAccounts) || [],
-    taxasAccounts: (window.DreConfig && window.DreConfig.accountGroups && window.DreConfig.accountGroups.taxasAccounts) || [],
-    outrasAdmAccounts: (window.DreConfig && window.DreConfig.accountGroups && window.DreConfig.accountGroups.outrasAdmAccounts) || [],
-    outrasPosAccounts: (window.DreConfig && window.DreConfig.accountGroups && window.DreConfig.accountGroups.outrasPosAccounts) || [],
-    posEbitdaAccounts: (window.DreConfig && window.DreConfig.accountGroups && window.DreConfig.accountGroups.posEbitdaAccounts) || [],
-    managementFeeAccounts: (window.DreConfig && window.DreConfig.accountGroups && window.DreConfig.accountGroups.managementFeeAccounts) || [],
-    // normalizePeriod: proxy to AppUtils or window.normalizePeriod when available
-    normalizePeriod(mes, ano) {
+    generateOcraReport() {
         try {
-            if (typeof this._normalizePeriod === 'function') return this._normalizePeriod(mes, ano);
-            if (typeof window.normalizePeriod === 'function') return window.normalizePeriod(mes, ano);
-        } catch (e) {}
-        // fallback simple formatting
-        return `${mes || ''}-${ano || ''}`;
-    },
-    
-    async init() {
-        // Now load storage asynchronously (supports Electron)
-        await this.loadFromStorage();
-        // Se `js/config/dre-config.js` foi carregado depois do parse, sincroniza aqui para garantir
-        // que `this.dreDeptLayout` e os grupos de contas estejam atualizados em runtime.
-        try {
-            if (window.DreConfig) {
-                this.dreDeptLayout = window.DreConfig.dreDeptLayout || this.dreDeptLayout || [];
-                const ag = window.DreConfig.accountGroups || {};
-                this.custoAccounts = ag.custoAccounts || this.custoAccounts || [];
-                this.depreciacaoAccounts = ag.depreciacaoAccounts || this.depreciacaoAccounts || [];
-                this.pessoalAccounts = ag.pessoalAccounts || this.pessoalAccounts || [];
-                this.aluguelAccounts = ag.aluguelAccounts || this.aluguelAccounts || [];
-                this.viagensAccounts = ag.viagensAccounts || this.viagensAccounts || [];
-            }
-        } catch (e) {
-            console.warn('Erro sincronizando DreConfig', e);
-        }
-        // Debug: log counts of core datasets after loading storage
-        try {
-            console.info('app.init: data counts', {
-                data: (this.data || []).length,
-                planoContas: (this.planoContas || []).length,
-                keyRatios: (this.keyRatiosData || []).length,
-                balance: (this.balanceData || []).length,
-                mgmtFees: (this.mgmtFees || []).length
-            });
-        } catch (e) { console.warn('Erro ao logar contagens em init', e); }
-
-        // Se AppUtils está disponível, registra proxies leves para reduzir difusão de helpers
-        try {
-            if (window.AppUtils) {
-                this._normalizePeriod = window.AppUtils.normalizePeriod ? window.AppUtils.normalizePeriod.bind(window.AppUtils) : this._normalizePeriod;
-                this.parseLocaleNumber = window.AppUtils.parseLocaleNumber ? window.AppUtils.parseLocaleNumber.bind(window.AppUtils) : (this.parseLocaleNumber || function(v){ return Number(v) || 0; });
-                this.normalizeAccountDigits = window.AppUtils.normalizeAccountDigits ? window.AppUtils.normalizeAccountDigits.bind(window.AppUtils) : (this.normalizeAccountDigits || function(s){ return String(s||'').replace(/\D/g,''); });
-                this.parseMonthString = window.AppUtils.parseMonthString ? window.AppUtils.parseMonthString.bind(window.AppUtils) : (this.parseMonthString || function(){ return null; });
-                this.filterMatches = window.AppUtils.filterMatches ? window.AppUtils.filterMatches.bind(window.AppUtils) : (this.filterMatches || function(i,f){ return true; });
-            }
-        } catch (e) {
-            console.warn('Erro ao ligar AppUtils no init', e);
-        }
-    },
-    processKeyRatiosData(rows) {
-        // Delegador para módulo de Key Ratios
-        if (window.AbaImportKeyRatios && typeof window.AbaImportKeyRatios.processKeyRatiosData === 'function') {
-            return window.AbaImportKeyRatios.processKeyRatiosData(this, rows);
-        }
-        this.showToast('Módulo de importação Key Ratios não encontrado.', true);
-    },
-
-    processKeyRatiosBudgetData(rows) {
-        if (window.AbaImportKeyRatios && typeof window.AbaImportKeyRatios.processKeyRatiosBudgetData === 'function') {
-            return window.AbaImportKeyRatios.processKeyRatiosBudgetData(this, rows);
-        }
-        this.showToast('Módulo de importação Key Ratios Budget não encontrado.', true);
-    },
-
-    switchTab(tabId) {
-        try {
-            // Normalize expected view id
-            // Special-case import-* keys: all map to single `view-import` container
-            let viewId;
-            if (String(tabId).startsWith('import-')) {
-                viewId = 'view-import';
-            } else {
-                viewId = tabId.startsWith('view-') ? tabId : `view-${tabId}`;
+            // Prefer delegation to module implementation if available
+            if (window.AbaDreDepartamento && typeof window.AbaDreDepartamento.generateOcraReport === 'function') {
+                return window.AbaDreDepartamento.generateOcraReport(this);
             }
 
-            // Hide all view-* containers
-            const all = document.querySelectorAll('[id^="view-"]');
-            all.forEach(el => {
-                el.classList.add('hidden');
-                el.classList.remove('block');
-            });
-
-            // Show target view if exists
-            const target = document.getElementById(viewId);
-            if (target) {
-                target.classList.remove('hidden');
-                target.classList.add('block');
-            }
-
-            // Update tab button active state (buttons have ids like tab-<key>)
-            document.querySelectorAll('[id^="tab-"]').forEach(btn => {
-                btn.classList.remove('bg-blue-600', 'text-white');
-            });
-            const tabBtn = document.getElementById(`tab-${tabId}`) || document.getElementById(`tab-${tabId.replace('view-','')}`);
-            if (tabBtn) {
-                tabBtn.classList.add('bg-blue-600', 'text-white');
-            }
-
-            // Small UX: update import-type-badge text when switching to import views
-            const badge = document.getElementById('import-type-badge');
-            if (badge) {
-                if (tabId.startsWith('import')) badge.innerText = tabId.replace('import-','').replace(/-/g,' ').toUpperCase();
-                else badge.innerText = 'Selecione uma aba';
-            }
-
-            // Após mostrar a view, aciona o renderer correspondente (se existir)
-            try {
-                const key = tabId.replace(/^view-/, '');
-                // If import-... was used, set import context accordingly
-                if (String(tabId).startsWith('import-') && typeof this.setImportContext === 'function') {
-                    try { this.setImportContext(tabId); } catch(e) { console.warn('setImportContext failed', e); }
-                }
-                switch (key) {
-                    case 'dre': if (typeof this.renderDRE === 'function') try { this.renderDRE(); } catch(e){console.warn('renderDRE failed',e);} break;
-                    case 'dre-acumulado': if (typeof this.renderDREAcumulado === 'function') try { this.renderDREAcumulado(); } catch(e){console.warn('renderDREAcumulado failed',e);} break;
-                    case 'dre-budget-2': if (typeof this.renderDREBudget2 === 'function') try { this.renderDREBudget2(); } catch(e){console.warn('renderDREBudget2 failed',e);} break;
-                    case 'dre-departamento': if (typeof this.renderDREDepartamento === 'function') try { this.renderDREDepartamento(); } catch(e){console.warn('renderDREDepartamento failed',e);} break;
-                    case 'dre-suecia': if (typeof this.renderDRESuecia === 'function') try { this.renderDRESuecia(); } catch(e){console.warn('renderDRESuecia failed',e);} break;
-                    case 'mgmt-fee': if (typeof this.renderMgmtFeesList === 'function') try { this.renderMgmtFeesList(); } catch(e){console.warn('renderMgmtFeesList failed',e);} break;
-                    case 'data': if (typeof this.renderData === 'function') try { this.renderData(); } catch(e){console.warn('renderData failed',e);} break;
-                    case 'margin-analysis': if (typeof this.renderMarginAnalysis === 'function') try { this.renderMarginAnalysis(); } catch(e){console.warn('renderMarginAnalysis failed',e);} break;
-                    case 'centros-custo': if (typeof this.renderCentrosCusto === 'function') try { this.renderCentrosCusto(); } catch(e){console.warn('renderCentrosCusto failed',e);} break;
-                    case 'locks':
-                        if (typeof this.renderLocks === 'function') try { this.renderLocks(); } catch(e){console.warn('renderLocks failed',e);} 
-                        try { if (typeof this.loadOcraConfig === 'function') this.loadOcraConfig(); } catch(e) { console.warn('loadOcraConfig failed', e); }
-                        break;
-                    default: break;
-                }
-            } catch (e) {
-                console.warn('switchTab render error', e);
-            }
-        } catch (e) {
-            console.error('switchTab error', e);
-        }
-    },
-
-    processPlanoContasData(rows) {
-        // Delegador: a lógica de importação do Plano de Contas foi movida para um módulo
-        if (window.AbaImportPlanoContas && typeof window.AbaImportPlanoContas.processPlanoContasData === 'function') {
-            return window.AbaImportPlanoContas.processPlanoContasData(this, rows);
-        }
-        this.showToast('Módulo de importação Plano de Contas não encontrado.', true);
-    },
-
-    processBalanceData(rows) {
-        // Delegador para o módulo de Balanço/Pos EBIT
-        if (window.AbaImportBalance && typeof window.AbaImportBalance.processBalanceData === 'function') {
-            try { return window.AbaImportBalance.processBalanceData(this, rows); } catch (e) { console.error('Erro ao delegar processBalanceData', e); this.showToast('Erro ao processar dados de Balanço.', true); }
-        }
-        this.showToast('Módulo de importação Balanço/Pos EBIT não encontrado.', true);
-    },
-
-    renderBalanceData() {
-        if (window.AbaImportBalance && typeof window.AbaImportBalance.renderBalanceData === 'function') {
-            try { return window.AbaImportBalance.renderBalanceData(this); } catch (e) { console.error('Erro ao delegar renderBalanceData', e); this.showToast('Erro ao renderizar Balanço.', true); }
-        }
-        this.showToast('Módulo de Balanço/Pos EBIT não encontrado.', true);
-    },
-
-    clearBalanceData() {
-        if (window.AbaImportBalance && typeof window.AbaImportBalance.clearBalanceData === 'function') {
-            try { return window.AbaImportBalance.clearBalanceData(this); } catch (e) { console.error('Erro ao delegar clearBalanceData', e); this.showToast('Erro ao limpar Balanço.', true); }
-        }
-        this.showToast('Módulo de Balanço/Pos EBIT não encontrado.', true);
-    },
-
-    exportBalanceData() {
-        if (window.AbaImportBalance && typeof window.AbaImportBalance.exportBalanceData === 'function') {
-            try { return window.AbaImportBalance.exportBalanceData(this); } catch (e) { console.error('Erro ao delegar exportBalanceData', e); this.showToast('Erro ao exportar Balanço.', true); }
-        }
-        this.showToast('Módulo de Balanço/Pos EBIT não encontrado.', true);
-    },
-
-
-    renderDREDepartamento() {
-        // Delegador para módulo `AbaDreDepartamento` (se presente)
-        try {
-            if (window.AbaDreDepartamento && typeof window.AbaDreDepartamento.render === 'function') {
-                const getFilterValue = (id) => { const el = document.getElementById(id); if (!el) return ''; const v = String(el.value || '').trim(); return v === 'Todos...' ? '' : v; };
-                let year = parseInt(document.getElementById('dre-dept-year') ? document.getElementById('dre-dept-year').value : (new Date().getFullYear()));
-                if (isNaN(year)) year = (new Date()).getFullYear();
-                let month = parseInt(document.getElementById('dre-dept-month') ? document.getElementById('dre-dept-month').value : (new Date().getMonth()+1));
-                if (isNaN(month)) month = (new Date()).getMonth() + 1;
-                const type = (document.getElementById('dre-dept-type') ? document.getElementById('dre-dept-type').value : 'accumulated');
-                const ctx = {
-                    year,
-                    month,
-                    type,
-                    filtros: {
-                        cc: getFilterValue('dre-dept-cc'),
-                        dept: getFilterValue('dre-dept-dept'),
-                        client: getFilterValue('dre-dept-client'),
-                        sbd: getFilterValue('dre-dept-sbd'),
-                        proj: getFilterValue('dre-dept-proj')
-                    },
+            // Fallback seguro: se o módulo não exportar generateOcraReport (ou não for carregado),
+            // mas expuser computeDREValues, usamos esse helper para gerar a exportação a partir
+            // dos mesmos dados/ regras usadas pela DRE (garante paridade mesmo sem estar na aba aberta).
+            if (window.AbaDreDepartamento && typeof window.AbaDreDepartamento.computeDREValues === 'function') {
+                const ctx = (typeof window.AbaDreDepartamento.prepareCtx === 'function') ? window.AbaDreDepartamento.prepareCtx(this) : {
+                    year: (new Date()).getFullYear(),
+                    month: (new Date()).getMonth() + 1,
                     data: this.data || [],
                     planoContas: this.planoContas || [],
-                    mgmtFees: this.mgmtFees || [],
+                    keyRatiosData: this.keyRatiosData || [],
                     mgmtDetailData: this.mgmtDetailData || {},
-                    keyRatiosData: (window.DataAPI && typeof DataAPI.getKeyRatiosData === 'function') ? DataAPI.getKeyRatiosData(this) : (this.keyRatiosData || []),
+                    mgmtFees: this.mgmtFees || [],
                     balanceData: this.balanceData || [],
                     exemptCCs: this.exemptCCs || [],
-                    isAdmAllocationEnabled: this.isAdmAllocationEnabled,
-                    isAdmAllocationSueciaEnabled: this.isAdmAllocationSueciaEnabled,
                     dreDeptLayout: this.dreDeptLayout || [],
-                    normalizeAccountDigits: this.normalizeAccountDigits,
-                    getLastMonthHeads: this.getLastMonthHeads ? this.getLastMonthHeads.bind(this) : null
+                    ocraConfig: this.ocraConfig || []
                 };
-                // delegador silencioso: chama AbaDreDepartamento sem logs
-                window.AbaDreDepartamento.render('view-dre-departamento', ctx);
-                return;
-            }
-        } catch (e) {
-            console.warn('Erro no delegador renderDREDepartamento', e);
-        }
 
-        if (typeof LEGACY_DRE_DISABLED !== 'undefined' && LEGACY_DRE_DISABLED) {
-            return;
-        }
-        const tbody = document.getElementById('dre-departamento-body');
-        const thead = tbody.parentElement.querySelector('thead');
-        const yearSelect = document.getElementById('dre-dept-year');
-        const monthSelect = document.getElementById('dre-dept-month');
-        const typeSelect = document.getElementById('dre-dept-type');
+                                // Forçar o contexto para usar os filtros de exportação (ano/mês da aba OCRA)
+                                try {
+                                    const yearEl = document.getElementById('ocra-export-year');
+                                    const monthEl = document.getElementById('ocra-export-month');
+                                    const selectedYear = yearEl ? parseInt(yearEl.value) : (ctx.year || (new Date()).getFullYear());
+                                    const selectedMonth = monthEl ? parseInt(monthEl.value) : (ctx.month || ((new Date()).getMonth()+1));
+                                    ctx.year = selectedYear;
+                                    ctx.month = selectedMonth;
+                                    ctx.type = 'ytd';
+                                } catch (e) { console.warn('Erro ao aplicar filtros OCRA ao contexto de export', e); }
 
-        if (!tbody || !thead) return;
-        tbody.innerHTML = '';
+                const { dreMap } = window.AbaDreDepartamento.computeDREValues(ctx);
 
-        // Populate Years if needed
-        const years = Array.from(new Set(this.data.map(d => d.ano))).sort().filter(Boolean);
-        
-        // Se o select estiver vazio e tivermos anos, popula
-        if (yearSelect.options.length === 0 && years.length > 0) {
-            years.forEach(y => {
-                const opt = document.createElement('option');
-                opt.value = y;
-                opt.innerText = y;
-                yearSelect.appendChild(opt);
-            });
-            // Select latest year by default
-            yearSelect.value = years[years.length - 1];
-        }
-
-        const selectedYear = yearSelect.value;
-        const selectedMonth = parseInt(monthSelect.value);
-        const selectedType = typeSelect.value;
-
-        if (!this.planoContas || this.planoContas.length === 0) {
-            this.showToast("Aviso: Plano de Contas não importado. Exibindo contas originais.", true);
-        }
-
-        // Mapeia conta contábil -> OCRA (Movido para antes do filtro para identificar contas de balanço)
-        const contabilToOcra = {};
-        const ocraDesc = {};
-        
-        this.planoContas.forEach(pc => {
-            // Normaliza para string e remove espaços
-            const red = String(pc.contaReduzida || '').trim();
-            const ocra = String(pc.contaOCRA || '').trim();
-            
-            if (red && ocra) {
-                contabilToOcra[red] = ocra;
-                // Tenta usar a descrição da primeira ocorrência, ou uma lógica melhor se disponível
-                if (!ocraDesc[ocra]) {
-                    ocraDesc[ocra] = pc.ocraDesc || pc.descricao || '';
-                }
-            }
-        });
-
-        // Filter Data
-        const filteredData = this.data.filter(item => {
-            // Para DRE Departamento: somente Actual - ignorar linhas Budget
-            if (String(item.tipo || '').trim() === 'Budget') return false;
-            if (!item.ano || !item.mes) return false;
-            if (String(item.ano) !== String(selectedYear)) return false;
-
-            const itemMonth = parseInt(item.mes);
-
-            // Verifica se é conta de Balanço (Ativo/Passivo)
-            const contaOriginal = String(item.conta).trim();
-            let ocra = item.contaOCRA ? String(item.contaOCRA).trim() : '';
-            if (!ocra) ocra = contabilToOcra[contaOriginal] || contaOriginal;
-            
-            const firstDigit = ocra.charAt(0);
-            const isBalanceSheet = ['1', '2'].includes(firstDigit);
-
-            if (selectedType === 'monthly') {
-                return itemMonth === selectedMonth;
-            } else { // YTD
-                if (isBalanceSheet) {
-                    // Contas de Ativo/Passivo já são acumuladas (saldo), então pega só o mês atual
-                    return itemMonth === selectedMonth;
-                } else {
-                    return itemMonth <= selectedMonth;
-                }
-            }
-        });
-
-        try {
-            console.debug('renderDRESuecia - params', { selectedYear, selectedMonth, selectedType, selectedView, filteredDataCount: filteredData.length });
-        } catch (e) {}
-
-        // Populate valores for Key Ratios
-        valores['KR_COUNT'] = consultantCounts;
-        valores['KR_HOURS'] = consultantHours;
-
-        // --- Heads Logic (Always Monthly Snapshot) ---
-        const headsConsultantsSets = {};
-        const headsADMSets = {};
-
-        const filteredKeyRatiosHeads = this.keyRatiosData.filter(item => {
-            if (!item.ano || !item.mes) return false;
-            if (String(item.ano) !== String(selectedYear)) return false;
-            const itemMonth = parseInt(item.mes);
-            // Sempre pega apenas o mês selecionado para Heads
-            return itemMonth === selectedMonth;
-        });
-
-        filteredKeyRatiosHeads.forEach(kr => {
-            let groupKey = '';
-            if (selectedView === 'sbd') groupKey = String(kr.sbd || 'Não Classificado').trim();
-            else if (selectedView === 'departamento') groupKey = String(kr.departamento || 'Não Classificado').trim();
-            else groupKey = String(kr.cliente || 'Não Classificado').trim();
-
-            if (groupKey) {
-                const depto = String(kr.departamento || '').trim().toUpperCase();
-                const name = kr.name;
-                if (name) {
-                    if (depto === 'ADM') {
-                        if (!headsADMSets[groupKey]) headsADMSets[groupKey] = new Set();
-                        headsADMSets[groupKey].add(name);
-                    } else {
-                        if (!headsConsultantsSets[groupKey]) headsConsultantsSets[groupKey] = new Set();
-                        headsConsultantsSets[groupKey].add(name);
-                    }
-                }
-            }
-        });
-
-        const headsConsultants = {};
-        const headsADM = {};
-        
-        // Calcula totais únicos globais para a coluna TOTAL
-        const allHeadsConsultantsSet = new Set();
-        const allHeadsADMSet = new Set();
-
-        Object.keys(headsConsultantsSets).forEach(k => {
-            headsConsultants[k] = headsConsultantsSets[k].size;
-            headsConsultantsSets[k].forEach(name => allHeadsConsultantsSet.add(name));
-        });
-        Object.keys(headsADMSets).forEach(k => {
-            headsADM[k] = headsADMSets[k].size;
-            headsADMSets[k].forEach(name => allHeadsADMSet.add(name));
-        });
-
-        // Injeta o total único na estrutura de valores para ser usado na renderização
-        // Como a renderização soma as colunas, precisamos "enganar" ou ajustar a renderização.
-        // Mas como não podemos mudar a renderização facilmente, vamos deixar a soma das colunas acontecer
-        // E se o usuário reclamar do total, explicamos que é a soma das visões.
-        // PORÉM, o usuário já reclamou "o valor total também não bate".
-        // Se a soma das colunas for maior que o total real (devido a um consultor em múltiplos projetos),
-        // precisamos corrigir.
-        
-        // Vamos tentar injetar uma coluna 'TOTAL_OVERRIDE' nos valores? Não, o layout é fixo.
-        // Vamos salvar esses totais reais em uma variável auxiliar e usar na renderização se possível?
-        // A função renderDRESuecia itera sobre 'columns' e soma em 'rowTotal'.
-        
-        // Workaround: Vamos pré-calcular o total correto e atribuir a uma propriedade especial
-        // que será checada na hora de renderizar a coluna TOTAL.
-        
-        valores['KR_HEADS_CONS'] = headsConsultants;
-        valores['KR_HEADS_ADM'] = headsADM;
-        
-        // Salva totais reais para uso posterior (as variáveis serão computadas
-        // mais adiante respeitando o último mês com dados, para evitar duplicação)
-
-        // --- Lógica de Rateio ADM (Novo) ---
-        // Se ativado, acumula custos ADM para distribuir depois
-        const admToDistribute = {}; 
-        let totalHeadsForAllocation = 0;
-        
-        if (this.isAdmAllocationSueciaEnabled) {
-            // Calcula total de heads elegíveis (excluindo ADM e Não Classificado se necessário)
-            // Assumindo que qualquer grupo com heads > 0 é elegível
-            Object.keys(headsConsultants).forEach(k => {
-                if (k !== 'ADM') {
-                    totalHeadsForAllocation += headsConsultants[k];
-                }
-            });
-        }
-
-        if (this.mgmtDetailData && this.mgmtDetailData[selectedYear] && totalConsultants > 0) {
-            const detailData = this.mgmtDetailData[selectedYear];
-            ['ocra', 'calc'].forEach(rowKey => {
-                const rowData = detailData[rowKey];
-                if (!rowData) return;
-
-                let rowValue = 0;
-                if (selectedType === 'monthly') {
-                    rowValue = Number(rowData.values[selectedMonth]) || 0;
-                } else {
-                    for (let m = 1; m <= selectedMonth; m++) {
-                        rowValue += Number(rowData.values[m]) || 0;
-                    }
-                }
-
-                if (rowValue !== 0) {
-                    const processMgmt = (val, type) => {
-                        const acc = String(type === 'debit' ? rowData.debit : rowData.credit).trim();
-                        if (!valores[acc]) valores[acc] = {};
-                        
-                        let eligibleGroups = Object.keys(consultantCounts);
-                        let totalForDiv = totalConsultants;
-
-                        // Se rateio ADM estiver ativo, exclui ADM da distribuição e recalcula o divisor
-                        if (this.isAdmAllocationSueciaEnabled) {
-                            eligibleGroups = eligibleGroups.filter(g => g !== 'ADM');
-                            totalForDiv = eligibleGroups.reduce((sum, g) => sum + consultantCounts[g], 0);
+                // Build export list
+                const ocraConfigList = Array.isArray(this.ocraConfig) ? this.ocraConfig : (this.ocraConfig ? [this.ocraConfig] : []);
+                const admCompanyNum = (ocraConfigList.find(c => c.department === 'ADM') || {}).companyNum || '';
+                const exportList = [];
+                Object.keys(dreMap || {}).forEach(acc => {
+                    // Excluir conta 3204 da exportação
+                    if (String(acc).trim() === '3204') return;
+                    Object.keys(dreMap[acc] || {}).forEach(depto => {
+                        const companyNum = (ocraConfigList.find(c => c.department === depto) || {}).companyNum || admCompanyNum || '';
+                        const deptNum = (ocraConfigList.find(c => c.department === depto) || {}).deptNum || '';
+                        const raw = Number(dreMap[acc][depto] || 0);
+                        let norm = (typeof window.applyOcraSignRule === 'function') ? window.applyOcraSignRule(acc, raw) : raw;
+                        // Forçar inversão de 4040 na coluna ADM conforme regra específica
+                        if (String(acc).trim() === '4040' && String(depto).trim() === 'ADM') {
+                            norm = -Math.abs(norm);
                         }
-
-                        if (totalForDiv > 0) {
-                            eligibleGroups.forEach(grp => {
-                                const count = consultantCounts[grp];
-                                const share = (count / totalForDiv) * val;
-                                if (!valores[acc][grp]) valores[acc][grp] = 0;
-                                valores[acc][grp] += share;
-                            });
-                        }
-                    };
-                    if (rowData.debit) processMgmt(rowValue, 'debit');
-                    if (rowData.credit) processMgmt(rowValue * -1, 'credit');
-                }
-            });
-        }
-
-        filteredData.forEach(item => {
-            if (!item.conta) return;
-            
-            let groupKey = '';
-            if (selectedView === 'sbd') groupKey = String(item.sbd || 'Não Classificado').trim();
-            else if (selectedView === 'departamento') groupKey = String(item.departamento || 'Não Classificado').trim();
-            else groupKey = String(item.cliente || 'Não Classificado').trim();
-            
-            if (groupKey) columnsSet.add(groupKey);
-
-            const contaOriginal = String(item.conta).trim();
-            const contaNum = Number(item.conta);
-            let ocra = item.contaOCRA ? String(item.contaOCRA).trim() : '';
-            if (!ocra) ocra = contabilToOcra[contaOriginal] || contaOriginal;
-
-            const valor = Number(item.valor) || 0;
-
-            if (contaNum === 1902) {
-                 const ccToCheck = String(item.centroCusto || '').trim();
-                 const isExempt = this.exemptCCs.includes(ccToCheck);
-                 if (!isExempt) {
-                     const taxValue = valor * -0.0925;
-                     if (!dynamicTax[groupKey]) dynamicTax[groupKey] = 0;
-                     dynamicTax[groupKey] += taxValue;
-                 }
-            }
-
-            const ignoredAccounts = ['8010','8022','8300','8360','8331','8390','8072','8400','8412','8460','8436','8490','8893','8820','8821','8828','8829','8890','8810','8935','8940','8980'];
-            if (ignoredAccounts.includes(ocra) || ignoredAccounts.includes(String(contaNum))) return;
-            if (ocra === '3204' || contaNum === 3204) return;
-            if (ocra === '6430' || contaNum === 6430) return;
-
-            // Regra específica: Ignorar 3010 na coluna ADM
-            if (ocra === '3010' && groupKey === 'ADM') return;
-
-            // Lógica de Rateio ADM
-            if (this.isAdmAllocationSueciaEnabled && totalHeadsForAllocation > 0) {
-                // Identifica se o custo é de ADM
-                // Se a visão for Departamento, é fácil: groupKey === 'ADM'
-                // Se a visão for outra, precisamos ver se o departamento original é ADM
-                const deptoOriginal = String(item.departamento || '').trim().toUpperCase();
-                
-                if (deptoOriginal === 'ADM') {
-                    // Acumula para distribuição
-                    if (!admToDistribute[ocra]) admToDistribute[ocra] = 0;
-                    admToDistribute[ocra] += valor;
-                    
-                    // Se estivermos na visão Departamento, removemos da coluna ADM (ou nem adicionamos)
-                    // Se estivermos em outra visão, o item iria para 'Não Classificado' ou outro lugar.
-                    // Simplesmente NÃO adicionamos ao 'valores' agora.
-                    return; 
-                }
-            }
-
-            if (!valores[ocra]) valores[ocra] = {};
-            if (!valores[ocra][groupKey]) valores[ocra][groupKey] = 0;
-            valores[ocra][groupKey] += valor;
-        });
-
-        // Aplica o rateio ADM acumulado
-        if (this.isAdmAllocationSueciaEnabled && totalHeadsForAllocation > 0) {
-            Object.keys(admToDistribute).forEach(ocra => {
-                const totalAdm = admToDistribute[ocra];
-                if (totalAdm !== 0) {
-                    if (!valores[ocra]) valores[ocra] = {};
-                    
-                    let distributed = false;
-
-                    // Lógica especial para créditos/reversões (Sinais Opostos)
-                    // Se o ADM tem sinal oposto aos clientes, distribui para quem tem o sinal oposto.
-                    // Ex: ADM Positivo (Crédito) -> Distribui para Clientes Negativos (Despesa)
-                    // Ex: ADM Negativo (Crédito invertido?) -> Distribui para Clientes Positivos
-                    
-                    const targetCols = [];
-                    let totalTargetValue = 0;
-                    
-                    Object.keys(valores[ocra]).forEach(col => {
-                        if (col !== 'ADM') {
-                            const val = valores[ocra][col];
-                            // Verifica se tem sinal oposto
-                            if ((totalAdm > 0 && val < 0) || (totalAdm < 0 && val > 0)) {
-                                targetCols.push(col);
-                                totalTargetValue += Math.abs(val);
-                            }
-                        }
+                        if (norm !== 0) exportList.push({ Company: companyNum, Departamento: deptNum, Account: acc, Amount: norm });
                     });
+                });
 
-                    if (targetCols.length > 0) {
-                        targetCols.forEach(col => {
-                            const share = (Math.abs(valores[ocra][col]) / totalTargetValue) * totalAdm;
-                            valores[ocra][col] += share;
-                        });
-                        distributed = true;
-                    }
+                if (exportList.length === 0) return this.showToast('Nenhum dado encontrado para os filtros selecionados.', true);
 
-                    // Se não foi distribuído pela regra de crédito (ou é despesa), usa Heads
-                    if (!distributed) {
-                        Object.keys(headsConsultants).forEach(targetGroup => {
-                            if (targetGroup !== 'ADM') {
-                                const heads = headsConsultants[targetGroup];
-                                if (heads > 0) {
-                                    const share = (heads / totalHeadsForAllocation) * totalAdm;
-                                    if (!valores[ocra][targetGroup]) valores[ocra][targetGroup] = 0;
-                                    valores[ocra][targetGroup] += share;
-                                    columnsSet.add(targetGroup); 
-                                }
-                            }
-                        });
-                    }
-                }
-            });
-        }
+                                // Sempre gerar arquivo de comparação com 3 abas: OCRA Export / DRE Values / Diff
+                                // Reconstruir exportSheet a partir de dreMap (forçar paridade com tela)
+                                const exportSheet = [];
+                                const dreRows = [];
+                                Object.keys(dreMap || {}).forEach(acc => {
+                                    // Excluir conta 3204 da exportação
+                                    if (String(acc).trim() === '3204') return;
+                                    Object.keys(dreMap[acc] || {}).forEach(depto => {
+                                        const companyNum = (ocraConfigList.find(c => c.department === depto) || {}).companyNum || admCompanyNum || '';
+                                        const deptNum = (ocraConfigList.find(c => c.department === depto) || {}).deptNum || '';
+                                        const dreRaw = Number(dreMap[acc][depto] || 0);
+                                        let dreNorm = (typeof window.applyOcraSignRule === 'function') ? window.applyOcraSignRule(acc, dreRaw) : dreRaw;
+                                        if (String(acc).trim() === '4040' && String(depto).trim() === 'ADM') {
+                                            dreNorm = -Math.abs(dreNorm);
+                                        }
+                                        exportSheet.push({ Company: companyNum, Departamento: deptNum, Account: acc, Amount: dreNorm });
+                                        dreRows.push({ Account: acc, Departamento: depto, DRE_Value: dreRaw });
+                                    });
+                                });
 
-        // Ordenação: ADM primeiro, depois por Receita (Total Income) decrescente
-        const revenueAccounts = [
-            '3010', '3556', '3557', '3015', '3095', '3019', '3018', '3030', '3204', // Revenue
-            '3413', '3040', '3050', '3110', '3521', '3910', '3510', '32101', '3960', '3973', '3900' // Other Income
-        ];
-        const colRevenue = {};
-        
-        columnsSet.forEach(col => {
-            colRevenue[col] = 0;
-            revenueAccounts.forEach(acc => {
-                let val = 0;
-                if (acc === '3204') val = dynamicTax[col] || 0;
-                else val = (valores[acc] && valores[acc][col]) ? valores[acc][col] : 0;
-                colRevenue[col] += val;
-            });
-        });
+                                // Build diff rows (should be zero deltas since export uses dreMap)
+                                const diffRows = exportSheet.map(r => ({ Account: r.Account, Departamento: r.Departamento, DRE_Value: (dreMap[r.Account] && dreMap[r.Account][r.Departamento]) ? Number(dreMap[r.Account][r.Departamento]) : 0, Export_Value: Number(r.Amount || 0), Delta: Number(r.Amount || 0) - ((dreMap[r.Account] && dreMap[r.Account][r.Departamento]) ? Number(dreMap[r.Account][r.Departamento]) : 0) }));
 
-        const columns = Array.from(columnsSet).sort((a, b) => {
-            if (a === 'ADM') return -1;
-            if (b === 'ADM') return 1;
-            return colRevenue[b] - colRevenue[a]; // Decrescente
-        });
-
-        try { console.debug('renderDRESuecia - columns', columns.length, columns.slice(0,10)); } catch(e) {}
-
-        thead.innerHTML = `<tr><th class='px-3 py-3 text-left'>Conta OCRA</th><th class='px-3 py-3 text-left'>Descrição</th>${columns.map(c => `<th class='px-3 py-3 text-right'>${c}</th>`).join('')}<th class='px-3 py-3 text-right font-bold'>TOTAL</th></tr>`;
-
-        // NOTE: total override for Key Ratios (Heads) is computed on-the-fly using
-        // `this.getLastMonthHeads(...)` to avoid duplicate declarations and ensure
-        // consistent behavior across different render functions.
-
-        const layout = [];
-        if (this.dreDeptLayout) {
-            for (const row of this.dreDeptLayout) {
-                layout.push(row);
-                if (row.id === 'gross_profit') {
-                    layout.push({ type: 'calculation', id: 'gross_profit_pct', description: 'GROSS PROFIT %', formula: 'gross_profit / total_income', isPercentage: true });
-                }
-                if (row.id === 'total_admin_costs') {
-                    layout.push({ type: 'calculation', id: 'total_admin_costs_pct', description: 'Total administration costs %', formula: 'total_admin_costs / total_income', isPercentage: true });
-                }
-                if (row.id === 'total_depreciation') {
-                    layout.push({ type: 'calculation', id: 'total_depreciation_pct', description: 'Total depreciation %', formula: 'total_depreciation / total_income', isPercentage: true });
-                }
-                if (row.id === 'total_sas') {
-                    layout.push({ type: 'calculation', id: 'total_sas_pct', description: 'TOTAL SaS %', formula: 'total_sas / total_income', isPercentage: true });
-                }
-                if (row.id === 'ebit') {
-                    layout.push({ type: 'calculation', id: 'ebit_pct', description: 'EBIT %', formula: 'ebit / total_income', isPercentage: true });
-                    
-                    // Add Key Ratios
-                    layout.push({ type: 'header', description: 'Key Ratios', bg: 'bg-blue-100' });
-                    layout.push({ type: 'account', code: 'KR_HEADS_CONS', description: 'Heads Consultants', precision: 0 });
-                    layout.push({ type: 'account', code: 'KR_HEADS_ADM', description: 'Heads ADM', precision: 0 });
-                    layout.push({ type: 'account', code: 'KR_HOURS', description: 'Total hours' });
-                    
-                    break;
-                }
-            }
-        }
-
-        let currentSectionTotal = {};
-        let savedTotals = {};
-        let invertValues = false;
-
-        if (layout.length > 0) {
-            layout.forEach(row => {
-                if (row.id === 'total_income') invertValues = true;
-
-                const tr = document.createElement('tr');
-                if (row.type === 'header') {
-                    tr.innerHTML = `<td class='px-3 py-2 font-bold' colspan="${3 + columns.length}">${row.description}</td>`;
-                    tbody.appendChild(tr);
-                    currentSectionTotal = {}; 
-                } else if (row.type === 'account') {
-                    const ocra = String(row.code).trim();
-                    const desc = row.description || ocraDesc[ocra] || '';
-                    let html = `<td class='px-3 py-2'>${ocra}</td><td class='px-3 py-2'>${desc}</td>`;
-                    let rowTotal = 0;
-                    let hasValue = false;
-
-                    columns.forEach(col => {
-                        let valor = 0;
-                        if (ocra === '3204') valor = dynamicTax[col] || 0;
-                        else valor = (valores[ocra] && valores[ocra][col]) ? valores[ocra][col] : 0;
-
-                        // Correção solicitada: Heads Consultants não deve ter valor na coluna ADM
-                        if (ocra === 'KR_HEADS_CONS' && col === 'ADM') valor = 0;
-
-                        // Inverte sinal se necessário, mas NÃO para Key Ratios (KR_)
-                        if (invertValues && !ocra.startsWith('KR_')) valor = valor * -1;
-                        
-                        if (valor !== 0) hasValue = true;
-                        
-                        rowTotal += valor;
-                        if (!currentSectionTotal[col]) currentSectionTotal[col] = 0;
-                        currentSectionTotal[col] += valor;
-
-                        const style = valor < 0 ? 'text-red-600' : 'text-gray-800';
-                        const precision = row.precision !== undefined ? row.precision : 2;
-                        html += `<td class='px-3 py-2 text-right ${style}'>${valor !== 0 ? valor.toLocaleString('pt-BR', {minimumFractionDigits:precision, maximumFractionDigits:precision}) : '-'}</td>`;
-                    });
-
-                    const rowStyle = rowTotal < 0 ? 'text-red-600' : 'text-gray-800';
-                    
-                    // Override Total for Heads: compute last-month heads respecting filters
-                    if (ocra === 'KR_HEADS_CONS') {
-                        try {
-                            const override = this.getLastMonthHeads(year, {cc: filterCC, dept: filterDept, cli: filterCli, sbd: filterSBD, proj: filterProj}, false);
-                            if (override && override > 0) rowTotal = override;
-                        } catch (e) { console.warn('Erro calculando override KR_HEADS_CONS', e); }
-                    } else if (ocra === 'KR_HEADS_ADM') {
-                        try {
-                            const override = this.getLastMonthHeads(year, {cc: filterCC, dept: filterDept, cli: filterCli, sbd: filterSBD, proj: filterProj}, true);
-                            if (override && override > 0) rowTotal = override;
-                        } catch (e) { console.warn('Erro calculando override KR_HEADS_ADM', e); }
-                    }
-
-                    const precision = row.precision !== undefined ? row.precision : 2;
-                    html += `<td class='px-3 py-2 text-right font-bold ${rowStyle}'>${rowTotal !== 0 ? rowTotal.toLocaleString('pt-BR', {minimumFractionDigits:precision, maximumFractionDigits:precision}) : '-'}</td>`;
-                    tr.innerHTML = html;
-                    if (hasValue) tbody.appendChild(tr);
-
-                } else if (row.type === 'total' || row.type === 'calculation') {
-                    const bgClass = row.bg || 'bg-gray-100';
-                    let html = `<td class='px-3 py-2 font-bold ${bgClass}'></td><td class='px-3 py-2 font-bold ${bgClass}'>${row.description}</td>`;
-                    
-                    let rowTotal = 0;
-                    if (row.id) savedTotals[row.id] = {};
-
-                    columns.forEach(col => {
-                        let total = 0;
-                        if (row.type === 'total') {
-                            total = currentSectionTotal[col] || 0;
-                        } else if (row.type === 'calculation' && row.formula) {
-                            const parts = row.formula.split(' ');
-                            if (parts.length >= 1) {
-                                total = (savedTotals[parts[0]] && savedTotals[parts[0]][col]) || 0;
-                                for (let i = 1; i < parts.length; i += 2) {
-                                    const op = parts[i];
-                                    const nextId = parts[i+1];
-                                    const nextVal = (savedTotals[nextId] && savedTotals[nextId][col]) || 0;
-                                    if (op === '+') total += nextVal;
-                                    else if (op === '-') total -= nextVal;
-                                    else if (op === '/') {
-                                        if (nextVal !== 0) total = (total / nextVal) * 100;
-                                        else total = 0;
-                                    }
-                                }
-                            }
-                        }
-                        
-                        rowTotal += total;
-                        if (row.id) savedTotals[row.id][col] = total;
-
-                        const style = total < 0 ? 'text-red-600' : 'text-gray-800';
-                        const precision = row.precision !== undefined ? row.precision : 2;
-                        const displayVal = row.isPercentage ? `${total.toFixed(2)}%` : (total !== 0 ? total.toLocaleString('pt-BR', {minimumFractionDigits:precision, maximumFractionDigits:precision}) : '-');
-                        html += `<td class='px-3 py-2 text-right font-bold ${bgClass} ${style}'>${displayVal}</td>`;
-                    });
-
-                    const rowStyle = rowTotal < 0 ? 'text-red-600' : 'text-gray-800';
-                    // Para totais de porcentagem, a soma das porcentagens não faz sentido, então talvez devêssemos recalcular o total global ou exibir vazio.
-                    // Mas seguindo a lógica atual, ele somaria as porcentagens, o que está errado.
-                    // Vamos recalcular a porcentagem total se for isPercentage.
-                    
-                    let displayRowTotal = '';
-                    if (row.isPercentage && row.formula) {
-                         const parts = row.formula.split(' ');
-                         // Recalcula total global: (Total Numerador / Total Denominador) * 100
-                         // Precisamos dos totais das linhas referenciadas.
-                         // savedTotals[id] armazena por coluna. Precisamos somar as colunas para ter o total da linha.
-                         
-                         // Helper para somar linha
-                         const sumRow = (id) => {
-                             if (!savedTotals[id]) return 0;
-                             return Object.values(savedTotals[id]).reduce((a, b) => a + b, 0);
-                         };
-
-                         let totalGlobal = sumRow(parts[0]);
-                         for (let i = 1; i < parts.length; i += 2) {
-                             const op = parts[i];
-                             const nextId = parts[i+1];
-                             const nextVal = sumRow(nextId);
-                             if (op === '+') totalGlobal += nextVal;
-                             else if (op === '-') totalGlobal -= nextVal;
-                             else if (op === '/') {
-                                 if (nextVal !== 0) totalGlobal = (totalGlobal / nextVal) * 100;
-                                 else totalGlobal = 0;
-                             }
-                         }
-                         displayRowTotal = `${totalGlobal.toFixed(2)}%`;
-                    } else {
-                        displayRowTotal = rowTotal !== 0 ? rowTotal.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2}) : '-';
-                    }
-
-                    html += `<td class='px-3 py-2 text-right font-bold ${bgClass} ${rowStyle}'>${displayRowTotal}</td>`;
-                    tr.innerHTML = html;
-                    tbody.appendChild(tr);
-
-                    if (row.type === 'total') {
-                        currentSectionTotal = {};
-                    }
-                }
-            });
-        }
-    },
-
-    // Diagnostic helper: compara totais por OCRA entre DRE Mensal, DRE Departamento e DRE Suécia
-    // Uso: app.compareDREAccounts(2025, 11, ['4040','4730'])
-    compareDREAccounts(year, month, accountsArray) {
-        year = String(year);
-        month = Number(month);
-        const accounts = (accountsArray || []).map(a => String(a).trim());
-        if (!accounts.length) return console.warn('Nenhuma conta fornecida');
-
-        // monta mapa de planoContas contaReduzida -> contaOCRA
-        const contabilToOcra = {};
-        (this.planoContas || []).forEach(pc => {
-            const red = String(pc.contaReduzida || '').trim();
-            const ocra = String(pc.contaOCRA || '').trim();
-            if (red && ocra) contabilToOcra[red] = ocra;
-        });
-
-        const result = {};
-        accounts.forEach(a => result[a] = {mensal:0, departamento:0, suecia:0});
-
-        const ignoredAccounts = ['8010','8022','8300','8360','8331','8390','8072','8400','8412','8460','8436','8490','8893','8820','8821','8828','8829','8890','8810','8935','8940','8980'];
-
-        (this.data || []).forEach(item => {
-            if (!item || !item.ano || !item.mes) return;
-            if (String(item.ano) !== String(year)) return;
-            const im = Number(item.mes);
-            if (isNaN(im) || im < 1) return;
-            if (im > month) return; // acumulado até mês
-
-            // ignorar budgets para estas visões
-            if (String(item.tipo || '').trim() === 'Budget') return;
-
-            // resolve ocra
-            const contaOriginal = String(item.conta || '').trim();
-            let ocra = item.contaOCRA ? String(item.contaOCRA).trim() : '';
-            if (!ocra) ocra = contabilToOcra[contaOriginal] || contaOriginal;
-            ocra = String(ocra).trim();
-
-            const valor = Number(item.valor) || 0;
-
-            // DRE Mensal (simples agregação por OCRA como na renderDRE, sem rateios especiais)
-            if (accounts.includes(ocra)) {
-                result[ocra].mensal += valor;
-            }
-
-            // DRE Departamento: aplica as mesmas exclusões do renderDREDepartamento
-            const contaNum = Number(this.normalizeAccountDigits(item.conta));
-            if (ocra && ocra !== '3204' && contaNum !== 3204 && ocra !== '6430' && contaNum !== 6430 && !ignoredAccounts.includes(String(contaNum))) {
-                if (accounts.includes(ocra)) result[ocra].departamento += valor;
-            }
-
-            // DRE Suécia: semelhante ao departamento, mas sem algumas regras extras
-            if (ocra && ocra !== '3204' && contaNum !== 3204 && !ignoredAccounts.includes(String(contaNum))) {
-                if (accounts.includes(ocra)) result[ocra].suecia += valor;
-            }
-        });
-
-        // Log e preparar CSV
-        console.table(result);
-
-        const rows = [['OCRA','Mensal_Acumulado','DRE_Departamento','DRE_Suecia','Diff_Dep_Mensal','Diff_Suecia_Mensal']];
-        Object.keys(result).forEach(k => {
-            const r = result[k];
-            const d1 = r.departamento - r.mensal;
-            const d2 = r.suecia - r.mensal;
-            rows.push([k, r.mensal.toFixed(2), r.departamento.toFixed(2), r.suecia.toFixed(2), d1.toFixed(2), d2.toFixed(2)]);
-        });
-
-        const csv = rows.map(r => r.map(c => String(c).replace(/"/g,'""')).map(c => '"'+c+'"').join(',')).join('\n');
-
-        // Gera download do CSV no browser
-        try {
-            const blob = new Blob([csv], {type: 'text/csv;charset=utf-8;'});
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `dre_compare_${year}_to_${month}.csv`;
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            URL.revokeObjectURL(url);
-        } catch (e) {
-            console.warn('Não foi possível gerar download automático (talvez não esteja num browser). Aqui está o CSV:\n', csv);
-        }
-
-        return result;
-    },
-
-    renderPreview() {
-        const tbody = document.getElementById('preview-body');
-        const table = tbody ? tbody.parentElement : null;
-        const thead = table ? table.querySelector('thead') : null;
-        
-        if (!tbody || !thead) return;
-        tbody.innerHTML = '';
-        thead.innerHTML = '';
-        let headers = [];
-
-        document.getElementById('preview-section').classList.remove('hidden');
-
-        if (this.currentImportType === 'KeyRatios') {
-            headers = ["Mês/Ano", "Nome", "Horas", "C. Custo", "Depto", "Cliente", "SB/C", "Proj Type"];
-            const headerHTML = headers.map(h => `<th class="px-4 py-2 text-left">${h}</th>`).join('');
-            thead.innerHTML = headerHTML;
-
-            this.tempData.slice(0, 5).forEach(item => {
-                const tr = document.createElement('tr');
-                tr.className = "bg-yellow-50 text-yellow-800";
-                tr.innerHTML = `
-                    <td class="px-4 py-2 whitespace-nowrap">${item.mes}/${item.ano}</td>
-                    <td class="px-4 py-2">${item.name}</td>
-                    <td class="px-4 py-2 font-mono">${item.hours.toFixed(2)}</td>
-                    <td class="px-4 py-2">${item.centroCusto}</td>
-                    <td class="px-4 py-2">${item.departamento}</td>
-                    <td class="px-4 py-2">${item.cliente}</td>
-                    <td class="px-4 py-2">${item.sbd}</td>
-                    <td class="px-4 py-2">${item.projectType}</td>
-                `;
-                tbody.appendChild(tr);
-            });
-        } else if (this.currentImportType === 'PlanoContas') {
-            headers = ["Conta Reduzida", "Conta Grande", "Descrição", "Conta OCRA", "OCRA Desc", "Subgrupo", "Grupo", "Conta Budget"];
-            const headerHTML = headers.map(h => `<th class="px-4 py-2 text-left">${h}</th>`).join('');
-            thead.innerHTML = headerHTML;
-
-            this.tempData.slice(0, 5).forEach(item => {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td class="px-4 py-2">${item.contaReduzida || ''}</td>
-                    <td class="px-4 py-2">${item.contaGrande || ''}</td>
-                    <td class="px-4 py-2">${item.descricao || ''}</td>
-                    <td class="px-4 py-2">${item.contaOCRA || ''}</td>
-                    <td class="px-4 py-2">${item.ocraDesc || ''}</td>
-                    <td class="px-4 py-2">${item.subgrupo || ''}</td>
-                    <td class="px-4 py-2">${item.grupo || ''}</td>
-                    <td class="px-4 py-2">${item.contaBudget || ''}</td>
-                `;
-                tbody.appendChild(tr);
-            });
-        } else if (this.currentImportType === 'Budget') {
-            // Simplificado: usamos sempre a conta que vem no arquivo como conta final
-            headers = ["Conta", "Descrição", "Valor", "Valor (raw)", "C. Custo", "Depto", "Cliente", "SB/C", "Proj Type", "Mês/Ano"];
-            const headerHTML = headers.map(h => `<th class="px-4 py-2 text-left">${h}</th>`).join('');
-            thead.innerHTML = headerHTML;
-
-            this.tempData.slice(0, 5).forEach(item => {
-                const tr = document.createElement('tr');
-                tr.className = "bg-indigo-50 text-indigo-800";
-                tr.innerHTML = `
-                    <td class="px-4 py-2">${item.conta || ''}</td>
-                    <td class="px-4 py-2 truncate max-w-xs" title="${item.descricao || ''}">${item.descricao || ''}</td>
-                    <td class="px-4 py-2 font-mono">${(item.valor || 0).toFixed(2)}</td>
-                    <td class="px-4 py-2 font-mono text-xs text-gray-500">${item._rawValor !== undefined ? String(item._rawValor) : ''}</td>
-                    <td class="px-4 py-2">${item.centroCusto}</td>
-                    <td class="px-4 py-2">${item.departamento}</td>
-                    <td class="px-4 py-2">${item.cliente}</td>
-                    <td class="px-4 py-2">${item.sbd}</td>
-                    <td class="px-4 py-2">${item.projectType}</td>
-                    <td class="px-4 py-2 whitespace-nowrap">${item.mes}/${item.ano}</td>
-                `;
-                tbody.appendChild(tr);
-            });
-        } else if (this.currentImportType === 'Balance') {
-            // Delegar pré-visualização específica de Balanço ao módulo
-            if (window.AbaImportBalance && typeof window.AbaImportBalance.renderPreview === 'function') {
-                try { return window.AbaImportBalance.renderPreview(this); } catch (e) { console.error('Erro ao delegar renderPreview Balance', e); this.showToast('Erro ao renderizar pré-visualização Balanço.', true); }
-            }
-            this.showToast('Módulo de Balanço não encontrado.', true);
-        } else {
-            headers = ["Tipo", "Mês/Ano", "Conta", "Descrição", "Valor", "C. Custo"];
-            const headerHTML = headers.map(h => `<th class="px-4 py-2 text-left">${h}</th>`).join('');
-            thead.innerHTML = headerHTML;
-            
-            this.tempData.slice(0, 5).forEach(item => {
-                const tr = document.createElement('tr');
-                const tipoClass = item.tipo === 'Receita' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
-                const rowClass = (item.conta == 3204) ? "bg-blue-50" : "";
-                tr.className = rowClass;
-                tr.innerHTML = `
-                    <td class="px-4 py-2"><span class="px-2 py-1 rounded text-xs font-bold ${tipoClass}">${item.tipo}</span></td>
-                    <td class="px-4 py-2 whitespace-nowrap">${item.mes}/${item.ano}</td>
-                    <td class="px-4 py-2">${item.conta || ''}</td>
-                    <td class="px-4 py-2">${item.descricao || ''}</td>
-                    <td class="px-4 py-2 font-mono">${typeof item.valor === 'number' ? item.valor.toFixed(2) : item.valor}</td>
-                    <td class="px-4 py-2">${item.centroCusto || ''}</td>
-                `;
-                tbody.appendChild(tr);
-            });
-        }
-        // Após montar a pré-visualização, verificar se existem centros de custo no tempData
-        try {
-            const missingIds = new Set();
-            const emptyRows = [];
-            (this.tempData || []).forEach((it, idx) => {
-                const cc = String(it.centroCusto || '').trim();
-                if (!cc) {
-                    if (emptyRows.length < 10) {
-                        const ident = `${it.mes || ''}/${it.ano || ''} ${String(it.conta || it.name || it.descricao || '').trim()}`.trim();
-                        emptyRows.push(ident || `linha ${idx+1}`);
-                    }
-                    return;
-                }
-                const found = this.findCentroByProjectId(cc);
-                if (!found) missingIds.add(cc);
-            });
-
-            const missingEl = document.getElementById('preview-missing-centros');
-            if (missingEl) {
-                const parts = [];
-                if (missingIds.size > 0) {
-                    const list = Array.from(missingIds).slice(0,50).map(c => `<code class=\"font-mono px-1\">${c}</code>`).join(', ');
-                    parts.push(`${missingIds.size} centro(s) de custo não cadastrados: ${list}` + (missingIds.size>50? ' (lista truncada)':''));
-                }
-                if (emptyRows.length > 0) {
-                    parts.push(`${emptyRows.length} linha(s) sem Centro de Custo (exemplos: ${emptyRows.join(', ')})`);
-                }
-
-                if (parts.length > 0) {
-                    missingEl.className = 'mt-4 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-800';
-                    missingEl.innerHTML = `<strong>Atenção:</strong> ${parts.join(' / ')}`;
-                } else {
-                    missingEl.className = 'mt-4 hidden';
-                    missingEl.innerHTML = '';
-                }
+                                const wb = XLSX.utils.book_new();
+                                const ws1 = XLSX.utils.json_to_sheet(exportSheet);
+                                const ws2 = XLSX.utils.json_to_sheet(dreRows);
+                                const ws3 = XLSX.utils.json_to_sheet(diffRows);
+                                XLSX.utils.book_append_sheet(wb, ws1, 'OCRA Export');
+                                XLSX.utils.book_append_sheet(wb, ws2, 'DRE Values');
+                                XLSX.utils.book_append_sheet(wb, ws3, 'Diff');
+                                XLSX.writeFile(wb, `OCRA_Comparison_fallback_${ctx.year}_${ctx.month}.xlsx`);
+                                return this.showToast(`Comparação OCRA gerada (Diff: ${diffRows.length} linhas).`);
             }
         } catch (e) {
-            console.warn('Erro ao verificar centros ausentes no preview', e);
+            console.warn('Erro delegando generateOcraReport para AbaDreDepartamento', e);
         }
+        this.showToast('Módulo AbaDreDepartamento não disponível para OCRA.', true);
     },
 
-    renderPlanoContas() {
-        // Apenas delegador: chama o módulo `AbaImportPlanoContas`.
-        if (window.AbaImportPlanoContas && typeof window.AbaImportPlanoContas.renderPlanoContas === 'function') {
-            try { return window.AbaImportPlanoContas.renderPlanoContas(this); } catch (e) { console.error('Erro no renderPlanoContas delegado', e); this.showToast('Erro ao renderizar Plano de Contas.', true); }
-        }
-        this.showToast('Módulo de Plano de Contas não encontrado.', true);
-    },
-
-    exportPlanoContas() {
-        // Apenas delegador: chama o módulo `AbaImportPlanoContas`.
-        if (window.AbaImportPlanoContas && typeof window.AbaImportPlanoContas.exportPlanoContas === 'function') {
-            try { return window.AbaImportPlanoContas.exportPlanoContas(this); } catch (e) { console.error('Erro no exportPlanoContas delegado', e); this.showToast('Erro ao exportar Plano de Contas.', true); }
-        }
-        this.showToast('Módulo de Plano de Contas não encontrado.', true);
-    },
-
-    exportCentrosCusto() {
-        if (window.AbaCentrosCusto && typeof window.AbaCentrosCusto.exportCentrosCusto === 'function') {
-            return window.AbaCentrosCusto.exportCentrosCusto(this);
-        }
-        if (!this.centrosCusto || this.centrosCusto.length === 0) {
-            this.showToast('Nenhum Centro de Custo para exportar.', true);
-            return;
-        }
-        const dataToExport = this.centrosCusto.map(item => ({
-            'Project ID': item.projectId || '',
-            'Descrição': item.descricao || '',
-            'Cliente': item.cliente || '',
-            'Departamento': item.departamento || '',
-            'SB/D': item.sbd || '',
-            'Project Type': item.projectType || ''
-        }));
-        try {
-            const ws = XLSX.utils.json_to_sheet(dataToExport);
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, 'Centros de Custo');
-            XLSX.writeFile(wb, 'Centros_de_Custo.xlsx');
-            this.showToast('Centros de Custo exportados.');
-        } catch (e) {
-            console.error('Erro exportando Centros de Custo', e);
-            this.showToast('Erro ao exportar Centros de Custo.', true);
-        }
-    },
+    
 
     confirmImport() {
         try {
-            console.info('confirmImport called', { currentImportType: this.currentImportType, tempDataLength: (this.tempData||[]).length });
-        } catch(e) {}
-
-        // Build set of years present in the import (normalize to be robust)
-        const yearsToReplace = new Set(this.tempData.map(item => {
-            const key = this.normalizePeriod(item.mes, item.ano);
-            return key.split('-').slice(1).join('-');
-        }));
-        // Build set of exact periods (mes-ano) present in the import so we can replace only those months
-        const periodsToReplace = new Set(this.tempData.map(item => this.normalizePeriod(item.mes, item.ano)));
-
-        // Antes de persistir, verificar se existem centros de custo não cadastrados na importação
-        try {
-            const missingIds = new Set();
-            const emptySamples = [];
-            (this.tempData || []).forEach((it, idx) => {
-                const cc = String(it.centroCusto || '').trim();
-                // identificador simples da linha para exibir ao usuário
-                const ident = `${it.mes || ''}/${it.ano || ''} ${String(it.conta || it.name || it.descricao || '').trim()}`.trim();
-                if (!cc) {
-                    if (emptySamples.length < 10) emptySamples.push(ident || `linha ${idx + 1}`);
-                    return;
-                }
-                const found = this.findCentroByProjectId(cc);
-                if (!found) missingIds.add(cc);
-            });
-
-            if (missingIds.size > 0 || emptySamples.length > 0) {
-                // Atualiza a pré-visualização para garantir que o usuário veja os centros faltantes
-                this.renderPreview();
-
-                const parts = [];
-                if (missingIds.size > 0) {
-                    const list = Array.from(missingIds).slice(0,50).join(', ');
-                    const more = missingIds.size > 50 ? ' (lista truncada)' : '';
-                    parts.push(`${missingIds.size} centro(s) de custo não cadastrados: ${list}${more}`);
-                }
-                if (emptySamples.length > 0) {
-                    parts.push(`${emptySamples.length} linha(s) sem Centro de Custo (exemplos: ${emptySamples.join(', ')})`);
-                }
-
-                const proceed = confirm(`Atenção: ${parts.join(' / ')}\n\nDeseja prosseguir com a importação mesmo assim?`);
-                if (!proceed) {
-                    this.showToast('Importação cancelada: existem centros de custo não cadastrados/ausentes.', true);
-                    return;
-                }
-            }
-        } catch (e) {
-            console.warn('Erro ao verificar centros ausentes antes da importação', e);
-        }
-
-        try {
-        if (this.currentImportType === 'KeyRatios') {
-            // ...existing code...
-            const existingKR = (this.keyRatiosData || []).filter(item => {
-                const period = this.normalizePeriod(item.mes, item.ano);
-                return !periodsToReplace.has(String(period));
-            });
-            const mergedKR = [...existingKR, ...this.tempData];
-            if (window.DataAPI && typeof DataAPI.setKeyRatios === 'function') {
-                DataAPI.setKeyRatios(this, mergedKR, { persist: true, render: true });
-            } else {
-                this.keyRatiosData = mergedKR;
-                this.saveToStorage();
-            }
-            this.showToast(`${this.tempData.length} Key Ratios salvos.`);
-            this.cancelImport();
-            this.switchTab('dre');
-        } else if (this.currentImportType === 'KeyRatiosBudget') {
-            // ...existing code...
-            if (window.AbaImportKeyRatios && typeof window.AbaImportKeyRatios.confirmKeyRatiosBudgetImport === 'function') {
-                return window.AbaImportKeyRatios.confirmKeyRatiosBudgetImport(this);
-            }
-            this.showToast('Módulo de importação Key Ratios Budget não encontrado.', true);
-            return;
-        } else if (this.currentImportType === 'PlanoContas') {
-            // ...existing code...
-            if (window.AbaImportPlanoContas && typeof window.AbaImportPlanoContas.confirmPlanoContasImport === 'function') {
-                return window.AbaImportPlanoContas.confirmPlanoContasImport(this);
-            }
-            if (window.DataAPI && typeof DataAPI.setPlanoContas === 'function') {
-                DataAPI.setPlanoContas(this, this.tempData, { persist: true, render: true });
-            } else {
-                this.planoContas = this.tempData;
-                this.saveToStorage();
-                if (typeof this.renderPlanoContas === 'function') try { this.renderPlanoContas(); } catch(e){}
-            }
-            this.showToast(`${this.tempData.length} contas do Plano de Contas salvas.`);
-            this.cancelImport();
-        } else if (this.currentImportType === 'Balance') {
+            if (this.currentImportType === 'PlanoContas') {
+                this.showToast(`${this.tempData.length} contas do Plano de Contas salvas.`);
+                this.cancelImport();
+            } else if (this.currentImportType === 'Balance') {
             // ...existing code...
             const existingBal = (this.balanceData || []).filter(item => {
                 const period = this.normalizePeriod(item.mes, item.ano);
@@ -1728,7 +589,7 @@ const app = {
         // debug logs removed
         
         // Popula apenas a lista de anos (é o filtro principal)
-        ['dre-year-select', 'dre-acc-year', 'dre-b2-year', 'margin-year-select', 'dre-dept-year'].forEach(id => {
+        ['dre-year-select', 'dre-acc-year', 'dre-b2-year', 'margin-year-select', 'dre-dept-year', 'ocra-export-year', 'ocra-parity-year'].forEach(id => {
             const el = document.getElementById(id);
             if (!el) return;
             const prevValue = el.value || null; el.innerHTML = '';
@@ -1949,6 +810,60 @@ const app = {
     
 
     renderDREBudget() {
+        // Delegator: prefere o módulo `AbaDreBudget` quando disponível.
+        try {
+            if (window.AbaDreBudget && typeof window.AbaDreBudget.render === 'function') {
+                let ctx = null;
+                if (typeof window.AbaDreBudget.prepareCtx === 'function') {
+                    try { ctx = window.AbaDreBudget.prepareCtx(this); } catch (e) { ctx = null; }
+                }
+                if (!ctx) {
+                    const getFilterValue = (id) => { const el = document.getElementById(id); if (!el) return ''; const v = String(el.value || '').trim(); return v === 'Todos...' ? '' : v; };
+                    let year = parseInt(document.getElementById('dre-budget-year-select') ? document.getElementById('dre-budget-year-select').value : (new Date()).getFullYear());
+                    if (isNaN(year)) year = (new Date()).getFullYear();
+                    let month = parseInt(document.getElementById('dre-budget-month-select') ? document.getElementById('dre-budget-month-select').value : (new Date().getMonth()+1));
+                    if (isNaN(month)) month = (new Date()).getMonth() + 1;
+                    ctx = {
+                        year,
+                        month,
+                        filtros: {
+                            cc: getFilterValue('dre-budget-filter-cc'),
+                            dept: getFilterValue('dre-budget-filter-dept'),
+                            client: getFilterValue('dre-budget-filter-client'),
+                            sbd: getFilterValue('dre-budget-filter-sbd'),
+                            proj: getFilterValue('dre-budget-filter-proj')
+                        },
+                        data: this.data || [],
+                        keyRatiosData: this.keyRatiosData || [],
+                        exemptCCs: this.exemptCCs || [],
+                        posEbitdaAccounts: this.posEbitdaAccounts || [],
+                        custoAccounts: this.custoAccounts || [],
+                        depreciacaoAccounts: this.depreciacaoAccounts || [],
+                        pessoalAccounts: this.pessoalAccounts || [],
+                        aluguelAccounts: this.aluguelAccounts || [],
+                        viagensAccounts: this.viagensAccounts || [],
+                        diversasAccounts: this.diversasAccounts || [],
+                        servicosProfissionaisAccounts: this.servicosProfissionaisAccounts || [],
+                        taxasAccounts: this.taxasAccounts || [],
+                        outrasAdmAccounts: this.outrasAdmAccounts || [],
+                        deductionAccounts: this.deductionAccounts || [],
+                        normalizeAccountDigits: (window.AppUtils && AppUtils.normalizeAccountDigits) || (this.normalizeAccountDigits ? this.normalizeAccountDigits.bind(this) : (s => String(s||''))),
+                        isAdmAllocationEnabled: this.isAdmAllocationEnabled,
+                        getAdmAllocationForMonth: this.getAdmAllocationForMonth ? this.getAdmAllocationForMonth.bind(this) : null,
+                        getMgmtFeeAllocationForMonth: this.getMgmtFeeAllocationForMonth ? this.getMgmtFeeAllocationForMonth.bind(this) : null,
+                        calculateKeyRatiosMonthly: this.calculateKeyRatiosMonthly ? this.calculateKeyRatiosMonthly.bind(this) : null,
+                        currentDREExportData: this.currentDREExportData || []
+                    };
+                }
+                return window.AbaDreBudget.render('view-dre-budget', ctx);
+            }
+        } catch (e) { console.warn('Erro delegando renderDREBudget para AbaDreBudget', e); }
+
+        // Fallback para implementação legada caso o módulo falhe ou não exista
+        if (typeof this._legacyRenderDREBudget === 'function') return this._legacyRenderDREBudget();
+    },
+
+    _legacyRenderDREBudget() {
         if (typeof LEGACY_DRE_DISABLED !== 'undefined' && LEGACY_DRE_DISABLED) { console.debug('Legacy DRE disabled: renderDREBudget skipped'); return; }
         this.currentDREExportData = [
             ["Conta", "Descrição", "Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez", "Total"]
@@ -2700,6 +1615,59 @@ const app = {
         }, 120);
     },
 
+    renderDRESuecia() {
+        // Debounced wrapper similar to other DRE renderers
+        if (this._dreSueciaTimer) clearTimeout(this._dreSueciaTimer);
+        this._dreSueciaTimer = setTimeout(() => {
+            try {
+                // If module provides prepareCtx, prefer it
+                let ctx = null;
+                if (window.AbaDreSuecia && typeof window.AbaDreSuecia.prepareCtx === 'function') {
+                    try { ctx = window.AbaDreSuecia.prepareCtx(this); } catch(e) { ctx = null; }
+                }
+
+                if (!ctx) {
+                    const getFilterValue = (id) => { const el = document.getElementById(id); if (!el) return ''; const v = String(el.value || '').trim(); return v === 'Todos...' ? '' : v; };
+                    const year = parseInt(document.getElementById('dre-suecia-year') ? document.getElementById('dre-suecia-year').value : (new Date()).getFullYear());
+                    const month = parseInt(document.getElementById('dre-suecia-month') ? document.getElementById('dre-suecia-month').value : (new Date()).getMonth()+1);
+                    const type = document.getElementById('dre-suecia-type') ? document.getElementById('dre-suecia-type').value : 'ytd';
+                    const view = document.getElementById('dre-suecia-view') ? document.getElementById('dre-suecia-view').value : 'departamento';
+                    ctx = {
+                        year,
+                        month,
+                        type,
+                        view,
+                        filtros: {
+                            cc: getFilterValue('dre-suecia-cc'),
+                            dept: getFilterValue('dre-suecia-dept'),
+                            client: getFilterValue('dre-suecia-client'),
+                            sbd: getFilterValue('dre-suecia-sbd'),
+                            proj: getFilterValue('dre-suecia-proj')
+                        },
+                        data: this.data || [],
+                        planoContas: this.planoContas || [],
+                        keyRatiosData: this.keyRatiosData || [],
+                        mgmtDetailData: this.mgmtDetailData || {},
+                        isAdmAllocationSueciaEnabled: !!this.isAdmAllocationSueciaEnabled,
+                        exemptCCs: this.exemptCCs || [],
+                        dreDeptLayout: (window.DreConfig && Array.isArray(DreConfig.dreDeptLayout)) ? DreConfig.dreDeptLayout : (this.dreDeptLayout || []),
+                        normalizeAccountDigits: (window.AppUtils && AppUtils.normalizeAccountDigits) || (this.normalizeAccountDigits ? this.normalizeAccountDigits.bind(this) : (s=>String(s||''))),
+                        getLastMonthHeads: this.getLastMonthHeads ? this.getLastMonthHeads.bind(this) : null
+                    };
+                }
+
+                if (window.AbaDreSuecia && typeof window.AbaDreSuecia.render === 'function') {
+                    window.AbaDreSuecia.render('view-dre-suecia', ctx);
+                    return;
+                }
+            } catch (e) {
+                console.error('Erro delegando renderDRESuecia para AbaDreSuecia:', e);
+            }
+            // Fallback: clear table body
+            try { const tbody = document.getElementById('dre-suecia-body'); if (tbody) tbody.innerHTML = ''; } catch(e) {}
+        }, 120);
+    },
+
     // --- NOVA VISÃO: DRE MENSAL BUDGET-2 (delegada ao módulo `AbaDreBudget2`) ---
     renderDREBudget2() {
         try {
@@ -2748,6 +1716,66 @@ const app = {
         }
         // Fallback mínimo: limpar a tabela se AbaDreBudget2 não estiver disponível
         try { const tbody = document.getElementById('dre-b2-body'); if (tbody) tbody.innerHTML = ''; } catch (e) {}
+    },
+
+    renderDREDepartamento() {
+        try {
+            // If module provides a prepareCtx helper, use it to ensure parity with extracted module
+            let ctx = null;
+            if (window.AbaDreDepartamento && typeof window.AbaDreDepartamento.prepareCtx === 'function') {
+                try { ctx = window.AbaDreDepartamento.prepareCtx(this); } catch(e) { ctx = null; }
+            }
+
+            if (!ctx) {
+                const getFilterValue = (id) => {
+                    const el = document.getElementById(id); if (!el) return ''; const v = String(el.value || '').trim(); return v === 'Todos...' ? '' : v;
+                };
+                const year = parseInt(document.getElementById('dre-dept-year') ? document.getElementById('dre-dept-year').value : (new Date().getFullYear()));
+                const month = parseInt(document.getElementById('dre-dept-month') ? document.getElementById('dre-dept-month').value : (new Date().getMonth()+1));
+                const type = document.getElementById('dre-dept-type') ? document.getElementById('dre-dept-type').value : 'accumulated';
+                ctx = {
+                    year,
+                    month,
+                    type,
+                    filtros: {
+                        cc: getFilterValue('dre-dept-cc'),
+                        dept: getFilterValue('dre-dept-dept'),
+                        client: getFilterValue('dre-dept-client'),
+                        sbd: getFilterValue('dre-dept-sbd'),
+                        proj: getFilterValue('dre-dept-proj')
+                    },
+                    data: this.data || [],
+                    planoContas: this.planoContas || [],
+                    mgmtFees: this.mgmtFees || [],
+                    mgmtDetailData: this.mgmtDetailData || {},
+                    keyRatiosData: this.keyRatiosData || [],
+                    balanceData: this.balanceData || [],
+                    exemptCCs: this.exemptCCs || [],
+                    isAdmAllocationEnabled: !!this.isAdmAllocationEnabled,
+                    isAdmAllocationSueciaEnabled: !!this.isAdmAllocationSueciaEnabled,
+                    dreDeptLayout: (window.DreConfig && Array.isArray(DreConfig.dreDeptLayout)) ? DreConfig.dreDeptLayout : (this.dreDeptLayout || []),
+                    // account groups (populated from DreConfig during init or here as fallback)
+                    custoAccounts: (window.DreConfig && DreConfig.accountGroups && Array.isArray(DreConfig.accountGroups.custoAccounts)) ? DreConfig.accountGroups.custoAccounts : (this.custoAccounts || []),
+                    depreciacaoAccounts: (window.DreConfig && DreConfig.accountGroups && Array.isArray(DreConfig.accountGroups.depreciacaoAccounts)) ? DreConfig.accountGroups.depreciacaoAccounts : (this.depreciacaoAccounts || []),
+                    pessoalAccounts: (window.DreConfig && DreConfig.accountGroups && Array.isArray(DreConfig.accountGroups.pessoalAccounts)) ? DreConfig.accountGroups.pessoalAccounts : (this.pessoalAccounts || []),
+                    viagensAccounts: (window.DreConfig && DreConfig.accountGroups && Array.isArray(DreConfig.accountGroups.viagensAccounts)) ? DreConfig.accountGroups.viagensAccounts : (this.viagensAccounts || []),
+                    aluguelAccounts: (window.DreConfig && DreConfig.accountGroups && Array.isArray(DreConfig.accountGroups.aluguelAccounts)) ? DreConfig.accountGroups.aluguelAccounts : (this.aluguelAccounts || []),
+                    servicosProfissionaisAccounts: (window.DreConfig && DreConfig.accountGroups && Array.isArray(DreConfig.accountGroups.servicosProfissionaisAccounts)) ? DreConfig.accountGroups.servicosProfissionaisAccounts : (this.servicosProfissionaisAccounts || []),
+                    taxasAccounts: (window.DreConfig && DreConfig.accountGroups && Array.isArray(DreConfig.accountGroups.taxasAccounts)) ? DreConfig.accountGroups.taxasAccounts : (this.taxasAccounts || []),
+                    normalizeAccountDigits: (window.AppUtils && AppUtils.normalizeAccountDigits) || (this.normalizeAccountDigits ? this.normalizeAccountDigits.bind(this) : (s=>String(s||''))),
+                    getLastMonthHeads: this.getLastMonthHeads ? this.getLastMonthHeads.bind(this) : null
+                };
+            }
+
+            if (window.AbaDreDepartamento && typeof window.AbaDreDepartamento.render === 'function') {
+                window.AbaDreDepartamento.render('view-dre-departamento', ctx);
+                return;
+            }
+        } catch (e) {
+            console.error('Erro delegando renderDREDepartamento para AbaDreDepartamento:', e);
+        }
+        // Fallback: clear tbody
+        try { const tbody = document.getElementById('dre-departamento-body'); if (tbody) tbody.innerHTML = ''; } catch (e) {}
     },
     
     renderAcumuladoRatios(container, ratios) {
@@ -3468,7 +2496,11 @@ const app = {
     // Helpers para gerenciar contas permitidas de receita em ADM
     isAdmRevenueAllowed(conta) {
         if (!conta) return false;
-        const d = this.normalizeAccountDigits(conta);
+        // Use AppUtils.normalizeAccountDigits when available; otherwise fallback to stripping non-digits.
+        const normalizer = (window.AppUtils && typeof AppUtils.normalizeAccountDigits === 'function')
+            ? AppUtils.normalizeAccountDigits
+            : (s => String(s || '').replace(/\D/g, ''));
+        const d = normalizer(conta);
         return (this.admRevenueAllowedAccounts || []).some(a => String(a) === String(d) || String(a) === String(conta));
     },
 
@@ -4249,8 +3281,8 @@ const app = {
                     // Lista de contas que compõem o Total Revenue
                     const revenueAccounts = ['3010', '3556', '3557', '3015', '3095', '3019', '3018', '3030', '3204'];
 
-                    // Se for uma das contas de receita (exceto a 3010), não exporta individualmente, pois será somada na 3010
-                    if (revenueAccounts.includes(ocra) && ocra !== '3010') return;
+                    // FORÇAR: incluir também as contas componentes de receita (3xxx-7xxx) na exportação
+                    // removemos o retorno que pulava essas contas para que apareçam no arquivo exportado.
 
                     let valor = 0;
 
@@ -4614,6 +3646,126 @@ const app = {
     }
 };
 
+// Minimal robust implementation of app.switchTab and app.init
+// These are intentionally conservative: they restore the public API
+// used by inline handlers in `index.html` and call the proper renderers.
+app.switchTab = function(tabKey) {
+    try {
+        if (!tabKey) return;
+        // Map logical tab keys to view IDs
+        const map = {
+            'dre': 'view-dre',
+            'dre-acumulado': 'view-dre-acumulado',
+            'dre-budget-2': 'view-dre-budget-2',
+            'dre-departamento': 'view-dre-departamento',
+            'dre-suecia': 'view-dre-suecia',
+            'mgmt-fee': 'view-mgmt-fee',
+            'data': 'view-data',
+            'margin-analysis': 'view-margin-analysis',
+            'locks': 'view-locks',
+            'centros-custo': 'view-centros-custo',
+            'import-receita': 'view-import',
+            'import-despesa': 'view-import',
+            'import-budget': 'view-import',
+            'import-key-ratios': 'view-import',
+            'import-key-ratios-budget': 'view-import',
+            'import-plano-contas': 'view-import',
+            'import-balance': 'view-import'
+        };
+
+        const viewId = map[tabKey] || ('view-' + tabKey);
+
+        // Hide all view-* containers
+        try {
+            document.querySelectorAll('[id^="view-"]').forEach(el => el.classList.add('hidden'));
+        } catch (e) { /* ignore */ }
+
+        const viewEl = document.getElementById(viewId);
+        if (viewEl) viewEl.classList.remove('hidden');
+
+        // Update tab button active state
+        try {
+            document.querySelectorAll('[id^="tab-"]').forEach(b => { b.classList.remove('tab-active'); b.classList.add('tab-inactive'); });
+            const btn = document.getElementById('tab-' + tabKey);
+            if (btn) { btn.classList.remove('tab-inactive'); btn.classList.add('tab-active'); }
+        } catch (e) { /* ignore */ }
+
+        // If this is an import tab, set context for the importer
+        try {
+            if (String(tabKey).startsWith('import-')) this.setImportContext(tabKey);
+        } catch (e) { /* ignore */ }
+
+        // Trigger renderer for the shown view when available
+        try {
+            if (viewId === 'view-dre') this.renderDRE && this.renderDRE();
+            if (viewId === 'view-dre-acumulado') this.renderDREAcumulado && this.renderDREAcumulado();
+            if (viewId === 'view-dre-budget-2') this.renderDREBudget2 && this.renderDREBudget2();
+            if (viewId === 'view-dre-departamento') this.renderDREDepartamento && this.renderDREDepartamento();
+            if (viewId === 'view-dre-suecia') this.renderDRESuecia && this.renderDRESuecia();
+            if (viewId === 'view-mgmt-fee') this.renderMgmtFeesList && this.renderMgmtFeesList();
+            if (viewId === 'view-data') this.renderData && this.renderData();
+            if (viewId === 'view-margin-analysis') this.renderMarginAnalysis && this.renderMarginAnalysis();
+            if (viewId === 'view-centros-custo') this.renderCentrosCusto && this.renderCentrosCusto();
+        } catch (e) { console.warn('switchTab renderer failed', e); }
+
+        try { window.location.hash = tabKey; } catch(e) {}
+    } catch (err) {
+        console.error('switchTab failed', err);
+    }
+};
+
+app.init = async function() {
+    if (this._inited) return;
+    try {
+        // Ensure filters and dynamic controls exist
+        try { if (typeof this.populateFilters === 'function') this.populateFilters(); } catch(e) {}
+        try { if (typeof this.setupDynamicFilters === 'function') this.setupDynamicFilters(); } catch(e) {}
+
+        // Load persisted state (handles electron/localStorage fallback)
+        try { if (typeof this.loadFromStorage === 'function') await this.loadFromStorage(); } catch(e) { console.warn('loadFromStorage in init failed', e); }
+
+        // Sincronizar configurações de DRE (layout e grupos de contas) se o arquivo de config carregou posteriormente
+        try {
+            if (window.DreConfig) {
+                try { this.dreDeptLayout = Array.isArray(DreConfig.dreDeptLayout) ? DreConfig.dreDeptLayout : (this.dreDeptLayout || []); } catch(e) { /* ignore */ }
+                try {
+                    const g = DreConfig.accountGroups || {};
+                    this.custoAccounts = Array.isArray(g.custoAccounts) ? g.custoAccounts : (this.custoAccounts || []);
+                    this.depreciacaoAccounts = Array.isArray(g.depreciacaoAccounts) ? g.depreciacaoAccounts : (this.depreciacaoAccounts || []);
+                    this.pessoalAccounts = Array.isArray(g.pessoalAccounts) ? g.pessoalAccounts : (this.pessoalAccounts || []);
+                    this.aluguelAccounts = Array.isArray(g.aluguelAccounts) ? g.aluguelAccounts : (this.aluguelAccounts || []);
+                    this.viagensAccounts = Array.isArray(g.viagensAccounts) ? g.viagensAccounts : (this.viagensAccounts || []);
+                    this.deductionAccounts = Array.isArray(g.deductionAccounts) ? g.deductionAccounts : (this.deductionAccounts || []);
+                    this.diversasAccounts = Array.isArray(g.diversasAccounts) ? g.diversasAccounts : (this.diversasAccounts || []);
+                    this.servicosProfissionaisAccounts = Array.isArray(g.servicosProfissionaisAccounts) ? g.servicosProfissionaisAccounts : (this.servicosProfissionaisAccounts || []);
+                    this.taxasAccounts = Array.isArray(g.taxasAccounts) ? g.taxasAccounts : (this.taxasAccounts || []);
+                    this.outrasAdmAccounts = Array.isArray(g.outrasAdmAccounts) ? g.outrasAdmAccounts : (this.outrasAdmAccounts || []);
+                    this.posEbitdaAccounts = Array.isArray(g.posEbitdaAccounts) ? g.posEbitdaAccounts : (this.posEbitdaAccounts || []);
+                    this.managementFeeAccounts = Array.isArray(g.managementFeeAccounts) ? g.managementFeeAccounts : (this.managementFeeAccounts || []);
+                } catch(e) { /* ignore */ }
+            }
+        } catch(e) { /* ignore DreConfig sync errors */ }
+
+        // Honor location.hash if present, otherwise keep existing visible view or default to 'dre'
+        const hash = (window.location.hash || '').replace('#','');
+        if (hash) {
+            try { this.switchTab(hash); } catch(e) {}
+        } else {
+            // If an import view is visible by default, keep it; otherwise prefer 'dre'
+            const importView = document.getElementById('view-import');
+            const shouldShowImport = importView && !importView.classList.contains('hidden');
+            if (shouldShowImport) {
+                this.switchTab('import-receita');
+            } else {
+                this.switchTab('dre');
+            }
+        }
+    } catch (err) {
+        console.error('app.init internal error', err);
+    }
+    this._inited = true;
+};
+
 window.onload = async () => {
   try {
     await app.init();
@@ -4624,6 +3776,14 @@ window.onload = async () => {
 
 // Torna o objeto disponível no escopo global para os handlers inline (onclick=...)
 window.app = app;
+
+// Expor helpers comuns caso não existam como métodos de `app`.
+// Isso assegura compatibilidade com módulos que chamam `this.normalizeAccountDigits`.
+try {
+    if (!app.normalizeAccountDigits) {
+        app.normalizeAccountDigits = (window.AppUtils && AppUtils.normalizeAccountDigits) || (s => String(s || '').replace(/\D/g, ''));
+    }
+} catch (e) { /* ignore */ }
 
 // Processa chamadas enfileiradas criadas pelo stub inicial no HTML (se houver)
 try {
@@ -4680,7 +3840,7 @@ app.renderDRE = function() {
             deductionAccounts: this.deductionAccounts || [],
             budgetRevenueAccounts: this.budgetRevenueAccounts || [],
             budgetExcludedFromRevenue: this.budgetExcludedFromRevenue || [],
-            normalizeAccountDigits: this.normalizeAccountDigits ? this.normalizeAccountDigits.bind(this) : null,
+            normalizeAccountDigits: (window.AppUtils && AppUtils.normalizeAccountDigits) || (this.normalizeAccountDigits ? this.normalizeAccountDigits.bind(this) : (s => String(s||'').replace(/\D/g, ''))),
             getAdmAllocationForMonth: this.getAdmAllocationForMonth ? this.getAdmAllocationForMonth.bind(this) : null,
             getMgmtFeeAllocationForMonth: this.getMgmtFeeAllocationForMonth ? this.getMgmtFeeAllocationForMonth.bind(this) : null,
             calculateKeyRatiosMonthly: this.calculateKeyRatiosMonthly ? this.calculateKeyRatiosMonthly.bind(this) : null,
